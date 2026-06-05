@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// =================用户====================
 // Repo 封装 Account 的数据库操作
 type Repo struct{}
 
@@ -52,4 +53,33 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// ================登录====================
+// FindByID 根据 ID 查找用户
+func (r *Repo) FindByID(id uint) (*Account, error) {
+	var account Account
+	result := db.DB.First(&account, id)
+	if result.Error != nil {
+		if result.RowsAffected == 0 {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &account, nil
+}
+
+// UpdateTokens 更新用户的 token 和 refresh_token
+func (r *Repo) UpdateTokens(id uint, token, refreshToken string) error {
+	return db.DB.Model(&Account{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"token":         token,
+		"refresh_token": refreshToken,
+	}).Error
+}
+
+// CheckPassword 验证密码
+// bcrypt.CompareHashAndPassword 会自动比较哈希和盐值
+func CheckPassword(hashedPassword, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	return err == nil
 }

@@ -26,7 +26,9 @@ func SetupRouter() *gin.Engine {
 	// 路由组：/account 前缀
 	accountGroup := r.Group("/account")
 	{
-		accountGroup.POST("/register", handler.Register) //
+		accountGroup.POST("/register", handler.Register)
+		accountGroup.POST("/login", handler.Login)
+
 	}
 	return r
 }

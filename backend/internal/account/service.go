@@ -1,6 +1,10 @@
 package account
 
-import "errors"
+import (
+	"errors"
+	"feedSystem_video/backend/internal/auth"
+	"feedSystem_video/backend/internal/config"
+)
 
 type Service struct {
 	repo *Repo
@@ -45,5 +49,39 @@ func (s *Service) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	return &RegisterResponse{
 		ID:       account.ID,
 		Username: account.Username,
+	}, nil
+}
+
+// Login 用户登录
+func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
+	// 第一步：查用户
+	account, err := s.repo.FindByUsername(req.Username)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, ErrUserNotFound
+	}
+
+	// 第二步：验证密码
+	if !CheckPassword(account.Password, req.Password) {
+		return nil, errors.New("密码错误")
+	}
+
+	// 第三步：生成双 Token
+	accessToken, refreshToken, err := auth.GenerateTokenPair(account.ID, account.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	// 第四步：保存 token 到数据库（后续会加 Redis 缓存）
+	if err := s.repo.UpdateTokens(account.ID, accessToken, refreshToken); err != nil {
+		return nil, err
+	}
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    config.C.JWT.AccessTTL,
 	}, nil
 }

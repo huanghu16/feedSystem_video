@@ -39,3 +39,24 @@ type RegisterResponse struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
 }
+
+// --- 登录相关 DTO ---
+
+// LoginRequest 登录请求
+type LoginRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// LoginResponse 登录响应
+type LoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"` // access_token 有效期（秒）
+}
+
+// TokenResponse 刷新 token 响应
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+}

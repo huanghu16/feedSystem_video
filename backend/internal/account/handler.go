@@ -43,3 +43,24 @@ func (h *Handler) Register(c *gin.Context) {
 	// 成功，则返回统一格式的响应
 	apierror.OK(c, resp)
 }
+
+// Login 处理 POST /account/login
+func (h *Handler) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	resp, err := h.service.Login(&req)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) || err.Error() == "密码错误" {
+			apierror.FailParam(c, "用户名或密码错误") // 不告诉用户是用户名错还是密码错（安全）
+			return
+		}
+		apierror.FailServer(c, "登录失败")
+		return
+	}
+
+	apierror.OK(c, resp)
+}
