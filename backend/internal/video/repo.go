@@ -1,6 +1,10 @@
 package video
 
-import "feedSystem_video/backend/internal/db"
+import (
+	"feedSystem_video/internal/db"
+
+	"gorm.io/gorm"
+)
 
 // Repo 视频数据访问
 type Repo struct{}
@@ -34,4 +38,58 @@ func (r *Repo) GetByID(id uint) (*Video, error) {
 		return nil, result.Error
 	}
 	return &video, nil
+}
+
+// ==================== 点赞 ====================
+
+// CreateLike 创建点赞记录
+func (r *Repo) CreateLike(videoID, accountID uint) error {
+	like := Like{VideoID: videoID, AccountID: accountID} // 点赞记录
+	return db.DB.Create(&like).Error
+}
+
+// DeleteLike 删除点赞记录（取消点赞）
+func (r *Repo) DeleteLike(videoID, accountID uint) error {
+
+	return db.DB.Where("video_id = ? AND account_id = ?", videoID, accountID).
+		Delete(&Like{}).Error
+}
+
+// IsLiked 查询是否已赞
+func (r *Repo) IsLiked(videoID, accountID uint) (bool, error) {
+	var count int64
+	err := db.DB.Model(&Like{}).
+		Where("video_id = ? AND account_id = ?", videoID, accountID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+// IncrementLikesCount 增加视频点赞数
+func (r *Repo) IncrementLikesCount(videoID uint) error {
+	return db.DB.Model(&Video{}).
+		Where("id = ?", videoID).
+		UpdateColumn("likes_count", gorm.Expr("likes_count + ?", 1)).Error
+}
+
+// DecrementLikesCount 减少视频点赞数
+func (r *Repo) DecrementLikesCount(videoID uint) error {
+	return db.DB.Model(&Video{}).
+		Where("id = ?", videoID).
+		UpdateColumn("likes_count", gorm.Expr("GREATEST(likes_count - ?, 0)", 1)).Error
+}
+
+// ==================== 评论 ====================
+
+// CreateComment 创建评论
+func (r *Repo) CreateComment(comment *Comment) error {
+	return db.DB.Create(comment).Error
+}
+
+// ListCommentsByVideoID 查询视频的评论列表（按时间正序）
+func (r *Repo) ListCommentsByVideoID(videoID uint) ([]Comment, error) {
+	var comments []Comment
+	err := db.DB.Where("video_id = ?", videoID).
+		Order("created_at ASC").
+		Find(&comments).Error
+	return comments, err
 }

@@ -48,3 +48,77 @@ type VideoItem struct {
 	LikesCount int       `json:"likes_count"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+// --- 点赞相关 ---
+
+// Like 点赞记录表
+type Like struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	VideoID   uint      `gorm:"index;not null" json:"video_id"`
+	AccountID uint      `gorm:"index;not null" json:"account_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (Like) TableName() string {
+	return "likes"
+}
+
+// LikeRequest 点赞/取消点赞请求
+type LikeRequest struct {
+	VideoID uint `json:"video_id" binding:"required"`
+}
+
+// UnlikeRequest 取消点赞请求
+type UnlikeRequest struct {
+	VideoID uint `json:"video_id" binding:"required"`
+}
+
+// IsLikedRequest 查询是否已赞请求
+type IsLikedRequest struct {
+	VideoID uint `json:"video_id" binding:"required"`
+}
+
+// IsLikedResponse 是否已赞响应
+type IsLikedResponse struct {
+	IsLiked bool `json:"is_liked"`
+}
+
+// ListMyLikedVideosRequest 查询我赞过的视频
+type ListMyLikedVideosRequest struct {
+	// 空请求，从 JWT 获取用户 ID
+}
+
+// --- 评论相关 ---
+
+// Comment 评论表
+type Comment struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	VideoID   uint      `gorm:"index;not null" json:"video_id"`
+	AccountID uint      `gorm:"index;not null" json:"account_id"`
+	Username  string    `gorm:"type:varchar(64);not null" json:"username"`
+	Content   string    `gorm:"type:varchar(512);not null" json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (Comment) TableName() string {
+	return "comments"
+}
+
+// PublishCommentRequest 发布评论请求
+type PublishCommentRequest struct {
+	VideoID uint   `json:"video_id" binding:"required"`
+	Content string `json:"content" binding:"required,max=512"`
+}
+
+// CommentItem 评论列表项
+type CommentItem struct {
+	ID        uint      `json:"id"`
+	Username  string    `json:"username"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ListCommentsRequest 评论列表请求
+type ListCommentsRequest struct {
+	VideoID uint `json:"video_id" binding:"required"`
+}

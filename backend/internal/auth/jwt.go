@@ -3,7 +3,7 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"feedSystem_video/backend/internal/config"
+	"feedSystem_video/internal/config"
 	"fmt"
 	"time"
 

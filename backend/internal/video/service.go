@@ -2,7 +2,7 @@ package video
 
 import (
 	"errors"
-	"feedSystem_video/backend/internal/account"
+	"feedSystem_video/internal/account"
 	"fmt"
 )
 
@@ -68,6 +68,99 @@ func (s *Service) ListByAuthor(authorID uint) ([]VideoItem, error) {
 			CoverURL:   v.CoverURL,   // 封面地址
 			LikesCount: v.LikesCount, // 点赞数
 			CreatedAt:  v.CreatedAt,  // 创建时间
+		}
+	}
+	return items, nil
+}
+
+// ==================== 点赞 ====================
+
+// Like 点赞
+func (s *Service) Like(videoID, accountID uint) error {
+	// 检查是否已赞
+	isLiked, err := s.repo.IsLiked(videoID, accountID)
+	if err != nil {
+		return err
+	}
+	if isLiked {
+		return errors.New("已经点赞过了")
+	}
+
+	// 创建点赞记录
+	if err := s.repo.CreateLike(videoID, accountID); err != nil {
+		return err
+	}
+
+	// 增加视频点赞数
+	return s.repo.IncrementLikesCount(videoID)
+}
+
+// Unlike 取消点赞
+func (s *Service) Unlike(videoID, accountID uint) error {
+	// 检查是否已赞
+	isLiked, err := s.repo.IsLiked(videoID, accountID)
+	if err != nil {
+		return err
+	}
+	if !isLiked {
+		return errors.New("还没有点赞")
+	}
+
+	// 删除点赞记录
+	if err := s.repo.DeleteLike(videoID, accountID); err != nil {
+		return err
+	}
+
+	// 减少视频点赞数
+	return s.repo.DecrementLikesCount(videoID)
+}
+
+// IsLiked 查询是否已赞
+func (s *Service) IsLiked(videoID, accountID uint) (bool, error) {
+	return s.repo.IsLiked(videoID, accountID)
+}
+
+// ==================== 评论 ====================
+
+// PublishComment 发布评论
+func (s *Service) PublishComment(req *PublishCommentRequest, accountID uint, username string) (*Comment, error) {
+	// 检查视频是否存在
+	video, err := s.repo.GetByID(req.VideoID)
+	if err != nil {
+		return nil, err
+	}
+	if video == nil {
+		return nil, ErrVideoNotFound
+	}
+
+	comment := &Comment{
+		VideoID:   req.VideoID, // 视频ID
+		AccountID: accountID,   // 用户ID
+		Username:  username,    // 用户名
+		Content:   req.Content, // 评论内容
+	}
+
+	if err := s.repo.CreateComment(comment); err != nil {
+		return nil, err
+	}
+
+	return comment, nil
+}
+
+// ListComments 查询评论列表
+func (s *Service) ListComments(videoID uint) ([]CommentItem, error) {
+	comments, err := s.repo.ListCommentsByVideoID(videoID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]CommentItem, len(comments))
+	for i, c := range comments {
+		items[i] = CommentItem{
+			ID:        c.ID,
+			Username:  c.Username,
+			Content:   c.Content,   // 评论内容
+			CreatedAt: c.CreatedAt, // 创建时间
 		}
 	}
 	return items, nil

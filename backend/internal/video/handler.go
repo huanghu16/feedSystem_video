@@ -1,8 +1,8 @@
 package video
 
 import (
-	"feedSystem_video/backend/internal/apierror"
-	"feedSystem_video/backend/internal/middleware/jwt"
+	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/middleware/jwt"
 	"fmt"
 	"io"
 	"os"
@@ -90,6 +90,115 @@ func (h *Handler) ListByAuthor(c *gin.Context) {
 	}
 
 	items, err := h.service.ListByAuthor(req.AuthorID)
+	if err != nil {
+		apierror.FailServer(c, "查询失败")
+		return
+	}
+
+	apierror.OK(c, items)
+}
+
+// ==================== 点赞 Handler ====================
+
+// Like 处理 POST /like/like
+func (h *Handler) Like(c *gin.Context) {
+	var req LikeRequest
+	if err := c.ShouldBindJSON(&req); err != nil { // 解析请求参数
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	accountID, _ := c.Get(jwt.AccountIDKey)
+	accountIDUint := accountID.(uint)
+
+	if err := h.service.Like(req.VideoID, accountIDUint); err != nil { // 调用 Service，执行业务逻辑
+		apierror.FailServer(c, err.Error()) // 返回错误响应
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "点赞成功"})
+}
+
+// Unlike 处理 POST /like/unlike
+func (h *Handler) Unlike(c *gin.Context) {
+	var req UnlikeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	accountID, _ := c.Get(jwt.AccountIDKey)
+	accountIDUint := accountID.(uint)
+
+	if err := h.service.Unlike(req.VideoID, accountIDUint); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "取消点赞成功"})
+}
+
+// IsLiked 处理 POST /like/isLiked
+func (h *Handler) IsLiked(c *gin.Context) {
+	var req IsLikedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	accountID, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.OK(c, IsLikedResponse{IsLiked: false})
+		return
+	}
+	accountIDUint := accountID.(uint)
+
+	isLiked, err := h.service.IsLiked(req.VideoID, accountIDUint)
+	if err != nil {
+		apierror.FailServer(c, "查询失败")
+		return
+	}
+
+	apierror.OK(c, IsLikedResponse{IsLiked: isLiked})
+}
+
+// ==================== 评论 Handler ====================
+
+// PublishComment 处理 POST /comment/publish
+func (h *Handler) PublishComment(c *gin.Context) {
+	var req PublishCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	accountID, _ := c.Get(jwt.AccountIDKey)
+	accountIDUint := accountID.(uint)
+	username, _ := c.Get("username")
+	usernameStr := username.(string)
+
+	comment, err := h.service.PublishComment(&req, accountIDUint, usernameStr)
+	if err != nil {
+		if err == ErrVideoNotFound {
+			apierror.FailParam(c, "视频不存在")
+			return
+		}
+		apierror.FailServer(c, "发布失败")
+		return
+	}
+
+	apierror.OK(c, comment)
+}
+
+// ListComments 处理 POST /comment/listAll
+func (h *Handler) ListComments(c *gin.Context) {
+	var req ListCommentsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	items, err := h.service.ListComments(req.VideoID)
 	if err != nil {
 		apierror.FailServer(c, "查询失败")
 		return

@@ -1,10 +1,12 @@
 package http
 
 import (
-	"feedSystem_video/backend/internal/account"
-	"feedSystem_video/backend/internal/apierror"
-	"feedSystem_video/backend/internal/middleware/jwt"
-	"feedSystem_video/backend/internal/video"
+	"feedSystem_video/internal/account"
+	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/feed" //新增
+	"feedSystem_video/internal/middleware/jwt"
+	"feedSystem_video/internal/social" //新增
+	"feedSystem_video/internal/video"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,6 +53,48 @@ func SetupRouter() *gin.Engine {
 
 	// 静态文件服务（让上传的视频可以通过 URL 访问）
 	r.Static("/static", "./uploads")
+
+	// --- Like 模块 ---
+	likeGroup := r.Group("/like")
+	{
+		likeGroup.Use(jwt.JWTAuth())
+		likeGroup.POST("/like", videoHandler.Like)
+		likeGroup.POST("/unlike", videoHandler.Unlike)
+		likeGroup.POST("/isLiked", videoHandler.IsLiked)
+	}
+
+	// --- Comment 模块 ---
+	commentGroup := r.Group("/comment")
+	{
+		commentGroup.POST("/listAll", videoHandler.ListComments) // 不需要登录
+		commentGroup.Use(jwt.JWTAuth())
+		commentGroup.POST("/publish", videoHandler.PublishComment)
+	}
+
+	// --- Social 模块 ---
+	socialRepo := social.NewRepo()
+	socialService := social.NewService(socialRepo, repo)
+	socialHandler := social.NewHandler(socialService)
+
+	socialGroup := r.Group("/social")
+	{
+		socialGroup.Use(jwt.JWTAuth())
+		socialGroup.POST("/follow", socialHandler.Follow)
+		socialGroup.POST("/unfollow", socialHandler.Unfollow)
+		socialGroup.POST("/getAllFollowers", socialHandler.GetFollowers)
+		socialGroup.POST("/getAllVloggers", socialHandler.GetVloggers)
+		socialGroup.POST("/getCounts", socialHandler.GetCounts)
+	}
+
+	// --- Feed 模块 ---
+	feedRepo := feed.NewRepo()
+	feedService := feed.NewService(feedRepo)
+	feedHandler := feed.NewHandler(feedService)
+
+	feedGroup := r.Group("/feed")
+	{
+		feedGroup.POST("/listLatest", feedHandler.ListLatest)
+	}
 
 	return r
 }

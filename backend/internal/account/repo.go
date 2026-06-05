@@ -1,7 +1,7 @@
 package account
 
 import (
-	"feedSystem_video/backend/internal/db"
+	"feedSystem_video/internal/db"
 
 	"golang.org/x/crypto/bcrypt"
 )

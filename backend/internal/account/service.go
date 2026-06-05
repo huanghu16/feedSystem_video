@@ -2,8 +2,8 @@ package account
 
 import (
 	"errors"
-	"feedSystem_video/backend/internal/auth"
-	"feedSystem_video/backend/internal/config"
+	"feedSystem_video/internal/auth"
+	"feedSystem_video/internal/config"
 )
 
 type Service struct {

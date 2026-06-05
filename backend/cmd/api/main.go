@@ -1,11 +1,12 @@
 package main
 
 import (
-	"feedSystem_video/backend/internal/account"
-	"feedSystem_video/backend/internal/config"
-	"feedSystem_video/backend/internal/db"
-	httpHandler "feedSystem_video/backend/internal/http"
-	"feedSystem_video/backend/internal/video"
+	"feedSystem_video/internal/account"
+	"feedSystem_video/internal/config"
+	"feedSystem_video/internal/db"
+	httpHandler "feedSystem_video/internal/http"
+	"feedSystem_video/internal/social" //新增
+	"feedSystem_video/internal/video"  //新增
 
 	"fmt"
 )
@@ -19,7 +20,13 @@ func main() {
 	db.Init()
 
 	//自动建表
-	db.DB.AutoMigrate(&account.Account{}, &video.Video{}) // 加上 &video.Video{}
+	db.DB.AutoMigrate(
+		&account.Account{},
+		&video.Video{},
+		&video.Like{},
+		&video.Comment{},
+		&social.Social{}, // 新增
+	)
 
 	r := httpHandler.SetupRouter()
 	//启动 HTTP 服务

@@ -2,7 +2,7 @@ package account
 
 import (
 	"errors"
-	"feedSystem_video/backend/internal/apierror"
+	"feedSystem_video/internal/apierror"
 
 	"github.com/gin-gonic/gin"
 )

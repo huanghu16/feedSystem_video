@@ -1,8 +1,8 @@
 package jwt
 
 import (
-	"feedSystem_video/backend/internal/apierror"
-	"feedSystem_video/backend/internal/auth"
+	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/auth"
 	"strings"
 
 	"github.com/gin-gonic/gin"

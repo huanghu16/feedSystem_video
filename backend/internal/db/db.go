@@ -1,7 +1,7 @@
 package db
 
 import (
-	"feedSystem_video/backend/internal/config"
+	"feedSystem_video/internal/config"
 	"fmt"
 	"log"
 
