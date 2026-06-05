@@ -5,6 +5,7 @@ import (
 	"feedSystem_video/backend/internal/config"
 	"feedSystem_video/backend/internal/db"
 	httpHandler "feedSystem_video/backend/internal/http"
+	"feedSystem_video/backend/internal/video"
 
 	"fmt"
 )
@@ -18,7 +19,7 @@ func main() {
 	db.Init()
 
 	//自动建表
-	db.DB.AutoMigrate(&account.Account{})
+	db.DB.AutoMigrate(&account.Account{}, &video.Video{}) // 加上 &video.Video{}
 
 	r := httpHandler.SetupRouter()
 	//启动 HTTP 服务
