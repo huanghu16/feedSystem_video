@@ -5,7 +5,8 @@ import (
 	"feedSystem_video/internal/config"
 	"feedSystem_video/internal/db"
 	httpHandler "feedSystem_video/internal/http"
-	"feedSystem_video/internal/middleware/redis" //新增
+	"feedSystem_video/internal/middleware/rabbitmq" //新增
+	"feedSystem_video/internal/middleware/redis"
 	"feedSystem_video/internal/social"
 	"feedSystem_video/internal/video"
 
@@ -21,6 +22,8 @@ func main() {
 	db.Init()
 	//初始化 Redis
 	redis.Init()
+	// 初始化RabbitMQ 连接（失败不阻塞，降级运行）
+	rabbitmq.Init()
 
 	//自动建表
 	db.DB.AutoMigrate(

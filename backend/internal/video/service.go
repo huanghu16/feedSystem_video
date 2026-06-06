@@ -2,10 +2,13 @@ package video
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"feedSystem_video/internal/account"
+	"feedSystem_video/internal/middleware/rabbitmq"
 	"feedSystem_video/internal/middleware/redis"
 	"fmt"
+	"log"
 )
 
 // Service 视频业务逻辑
@@ -81,7 +84,7 @@ func (s *Service) ListByAuthor(authorID uint) ([]VideoItem, error) {
 
 // ==================== 点赞 ====================
 
-// Like 点赞
+// Like 点赞（发 MQ 异步处理）
 func (s *Service) Like(videoID, accountID uint) error {
 	// 检查是否已赞
 	isLiked, err := s.repo.IsLiked(videoID, accountID)
@@ -92,18 +95,22 @@ func (s *Service) Like(videoID, accountID uint) error {
 		return errors.New("已经点赞过了")
 	}
 
-	// 创建点赞记录
-	if err := s.repo.CreateLike(videoID, accountID); err != nil {
-		return err
+	// 发 MQ 消息（异步）
+	event := rabbitmq.LikeEvent{VideoID: videoID, AccountID: accountID}
+	eventJSON, _ := json.Marshal(event)
+
+	err = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyLike, string(eventJSON))
+	if err != nil {
+		// MQ 发送失败，降级为同步写库
+		log.Printf("[Like] MQ 发送失败，降级同步写库: %v", err)
+		return s.repo.CreateLike(videoID, accountID)
 	}
 
-	// 增加视频点赞数
-	return s.repo.IncrementLikesCount(videoID)
+	return nil
 }
 
-// Unlike 取消点赞
+// Unlike 取消点赞（发 MQ 异步处理）
 func (s *Service) Unlike(videoID, accountID uint) error {
-	// 检查是否已赞
 	isLiked, err := s.repo.IsLiked(videoID, accountID)
 	if err != nil {
 		return err
@@ -112,13 +119,16 @@ func (s *Service) Unlike(videoID, accountID uint) error {
 		return errors.New("还没有点赞")
 	}
 
-	// 删除点赞记录
-	if err := s.repo.DeleteLike(videoID, accountID); err != nil {
-		return err
+	event := rabbitmq.LikeEvent{VideoID: videoID, AccountID: accountID}
+	eventJSON, _ := json.Marshal(event)
+
+	err = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyUnlike, string(eventJSON))
+	if err != nil {
+		log.Printf("[Unlike] MQ 发送失败，降级同步写库: %v", err)
+		return s.repo.DeleteLike(videoID, accountID)
 	}
 
-	// 减少视频点赞数
-	return s.repo.DecrementLikesCount(videoID)
+	return nil
 }
 
 // IsLiked 查询是否已赞

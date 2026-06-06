@@ -18,3 +18,9 @@ jwt:
   secret: "feedSystem_video-dev-secret-key"
   access_ttl: 900       # 15分钟（秒）
   refresh_ttl: 604800    # 7天（秒）go get github.com/redis/go-redis/v9
+
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  user: guest
+  password: guest

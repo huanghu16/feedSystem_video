@@ -11,10 +11,11 @@ import (
 // AppConfig 是全局配置
 // 所有子配置都内嵌在这里，通过 YAML 文件 + 环境变量加载
 type AppConfig struct {
-	Server ServerConfig `yaml:"server"`
-	MySQL  MySQLConfig  `yaml:"mysql"`
-	Redis  RedisConfig  `yaml:"redis"`
-	JWT    JWTConfig    `yaml:"jwt"`
+	Server   ServerConfig   `yaml:"server"`
+	MySQL    MySQLConfig    `yaml:"mysql"`
+	Redis    RedisConfig    `yaml:"redis"`
+	JWT      JWTConfig      `yaml:"jwt"`
+	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
 }
 
 // 服务器配置
@@ -46,6 +47,14 @@ type JWTConfig struct {
 	RefreshTTL int    `yaml:"refresh_ttl"`
 }
 
+// RabbitMQ 配置
+type RabbitMQConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+}
+
 // 全局配置实例，其他包通过 config.C 访问配置
 var C AppConfig
 
@@ -75,18 +84,26 @@ func Load(configPath string) error {
 // setDefaults 设置硬编码的默认值（当配置文件不存在时使用）
 func setDefaults() {
 	C.Server.Port = 8080
+
 	C.MySQL.Host = "127.0.0.1"
 	C.MySQL.Port = 3308
 	C.MySQL.User = "root"
 	C.MySQL.Password = "123456"
 	C.MySQL.Database = "feed_system_video"
+
 	C.Redis.Host = "127.0.0.1"
 	C.Redis.Port = 6379
-	C.Redis.Password = " "
+	C.Redis.Password = ""
 	C.Redis.DB = 0
+
 	C.JWT.Secret = "feedSystem-dev-secret-key"
 	C.JWT.AccessTTL = 900
 	C.JWT.RefreshTTL = 604800
+
+	C.RabbitMQ.Host = "127.0.0.1"
+	C.RabbitMQ.Port = 5672
+	C.RabbitMQ.User = "guest"
+	C.RabbitMQ.Password = "guest"
 }
 
 // applyEnvOverrides 用环境变量覆盖配置（Docker 部署时使用）
@@ -116,6 +133,10 @@ func applyEnvOverrides() {
 	overrideStr("REDIS_HOST", &C.Redis.Host)
 	overrideInt("REDIS_PORT", &C.Redis.Port)
 	overrideStr("JWT_SECRET", &C.JWT.Secret)
+	overrideStr("RABBITMQ_HOST", &C.RabbitMQ.Host)
+	overrideInt("RABBITMQ_PORT", &C.RabbitMQ.Port)
+	overrideStr("RABBITMQ_USER", &C.RabbitMQ.User)
+	overrideStr("RABBITMQ_PASS", &C.RabbitMQ.Password)
 }
 
 // validate 检查必要配置是否已设置
