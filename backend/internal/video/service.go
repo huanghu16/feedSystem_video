@@ -1,8 +1,10 @@
 package video
 
 import (
+	"context"
 	"errors"
 	"feedSystem_video/internal/account"
+	"feedSystem_video/internal/middleware/redis"
 	"fmt"
 )
 
@@ -39,13 +41,17 @@ func (s *Service) Publish(req *PublishRequest, authorID uint) (*Video, error) {
 		AuthorID: authorID,
 		Username: author.Username,
 		Title:    req.Title,
-		PlayURL:  req.PlayURL,
-		CoverURL: req.CoverURL,
+		PlayURL:  req.PlayURL,  // 播放地址
+		CoverURL: req.CoverURL, // 封面地址
 	}
 
+	// 保存视频
 	if err := s.repo.Create(video); err != nil {
 		return nil, fmt.Errorf("创建视频失败: %w", err)
 	}
+
+	// 清除 Feed 缓存，让下次查询时重新从数据库加载
+	_ = redis.Del(context.Background(), "v1:feed:latest:all")
 
 	return video, nil
 }

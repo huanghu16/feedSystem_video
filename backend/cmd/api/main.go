@@ -5,8 +5,9 @@ import (
 	"feedSystem_video/internal/config"
 	"feedSystem_video/internal/db"
 	httpHandler "feedSystem_video/internal/http"
-	"feedSystem_video/internal/social" //新增
-	"feedSystem_video/internal/video"  //新增
+	"feedSystem_video/internal/middleware/redis" //新增
+	"feedSystem_video/internal/social"
+	"feedSystem_video/internal/video"
 
 	"fmt"
 )
@@ -18,6 +19,8 @@ func main() {
 	}
 	//初始化数据库
 	db.Init()
+	//初始化 Redis
+	redis.Init()
 
 	//自动建表
 	db.DB.AutoMigrate(

@@ -11,10 +11,10 @@ mysql:
 redis:
   host: 127.0.0.1
   port: 6379
-  password: " "
+  password: ""
   db: 0
 
 jwt:
-  secret: "feedSystem-dev-secret-key"
+  secret: "feedSystem_video-dev-secret-key"
   access_ttl: 900       # 15分钟（秒）
-  refresh_ttl: 604800    # 7天（秒）
+  refresh_ttl: 604800    # 7天（秒）go get github.com/redis/go-redis/v9
