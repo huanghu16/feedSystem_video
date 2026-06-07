@@ -1,0 +1,33 @@
+import { postJson, postForm } from './client'
+import type { VideoItem } from './types'
+
+/**
+ * 上传视频
+ * @param file
+ * @return play_url 视频播放地址
+ */
+export function uploadVideo(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return postForm<{ play_url: string }>('/video/uploadVideo', formData)
+}
+
+/** 
+ * 发布视频
+ * @param title 视频标题
+ * @param playUrl 视频播放地址
+ * @param coverUrl 视频封面地址
+ * @return VideoItem 发布成功后返回的视频信息 
+*/
+export function publishVideo(title: string, playUrl: string, coverUrl: string) {
+  return postJson<VideoItem>('/video/publish', { title, play_url: playUrl, cover_url: coverUrl })
+}
+
+/**
+ * 获取作者的视频列表
+ * @param authorId 作者id
+ * @return VideoItem[] 视频列表
+ */
+export function listByAuthor(authorId: number) {
+  return postJson<VideoItem[]>('/video/listByAuthorID', { author_id: authorId })
+}

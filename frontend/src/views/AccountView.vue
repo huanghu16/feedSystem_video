@@ -1,7 +1,7 @@
 <template>
   <div class="account-page">
     <div class="card">
-    <h1>🎬 Feed System Video</h1>c
+    <h1>🎬 Feed System Video</h1>
       <h1>{{ isRegister ? '注册' : '登录' }}</h1>
 
       <el-form @submit.prevent="handleSubmit" label-position="top">

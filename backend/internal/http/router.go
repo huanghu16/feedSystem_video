@@ -50,6 +50,8 @@ func SetupRouter() *gin.Engine {
 
 	// 不需要 JWT 的接口（放在外面）
 	r.POST("/video/listByAuthorID", videoHandler.ListByAuthor)
+	// 不需要登录，即可搜索视频
+	r.POST("/video/getDetail", videoHandler.GetDetail)
 
 	// 静态文件服务（让上传的视频可以通过 URL 访问）
 	r.Static("/static", "./uploads")

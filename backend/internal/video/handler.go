@@ -206,3 +206,26 @@ func (h *Handler) ListComments(c *gin.Context) {
 
 	apierror.OK(c, items)
 }
+
+// GetDetail 处理 POST /video/getDetail
+func (h *Handler) GetDetail(c *gin.Context) {
+	var req struct {
+		ID uint `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	video, err := h.service.repo.GetByID(req.ID)
+	if err != nil {
+		apierror.FailServer(c, "查询失败")
+		return
+	}
+	if video == nil {
+		apierror.FailParam(c, "视频不存在")
+		return
+	}
+
+	apierror.OK(c, video)
+}

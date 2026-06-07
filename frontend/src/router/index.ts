@@ -25,6 +25,11 @@ const router = createRouter({
             meta: { requiresAuth: true },  // 需要登录
             component: () => import('../views/SettingsView.vue'),
         },
+        {   // 视频详情
+            path: '/video/:id',
+            name: 'video-detail',
+            component: () => import('../views/VideoDetailView.vue'),
+        },
     ],
 })
 
