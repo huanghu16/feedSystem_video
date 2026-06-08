@@ -15,6 +15,7 @@ type Video struct {
 	PlayURL    string         `gorm:"type:varchar(512);not null" json:"play_url"`
 	CoverURL   string         `gorm:"type:varchar(512);default:''" json:"cover_url"`
 	LikesCount int            `gorm:"default:0" json:"likes_count"`
+	PlayCount  int            `gorm:"default:0" json:"play_count"`
 	CreatedAt  time.Time      `json:"created_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 }
@@ -46,6 +47,7 @@ type VideoItem struct {
 	PlayURL    string    `json:"play_url"`
 	CoverURL   string    `json:"cover_url"`
 	LikesCount int       `json:"likes_count"`
+	PlayCount  int       `json:"play_count"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 

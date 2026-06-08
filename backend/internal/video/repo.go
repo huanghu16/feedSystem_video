@@ -78,6 +78,15 @@ func (r *Repo) DecrementLikesCount(videoID uint) error {
 		UpdateColumn("likes_count", gorm.Expr("GREATEST(likes_count - ?, 0)", 1)).Error
 }
 
+// ==================== 播放量 ====================
+
+// IncrementPlayCount 增加视频播放量
+func (r *Repo) IncrementPlayCount(videoID uint) error {
+	return db.DB.Model(&Video{}).
+		Where("id = ?", videoID).
+		UpdateColumn("play_count", gorm.Expr("play_count + ?", 1)).Error
+}
+
 // ==================== 评论 ====================
 
 // CreateComment 创建评论
@@ -92,4 +101,15 @@ func (r *Repo) ListCommentsByVideoID(videoID uint) ([]Comment, error) {
 		Order("created_at ASC").
 		Find(&comments).Error
 	return comments, err
+}
+
+// ==================== 热门列表 ====================
+
+// ListHotVideos 获取热门视频列表（按播放量倒序，限制数量）
+func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
+	var videos []Video
+	err := db.DB.Order("play_count DESC").
+		Limit(limit).
+		Find(&videos).Error
+	return videos, err
 }

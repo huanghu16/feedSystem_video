@@ -229,3 +229,42 @@ func (h *Handler) GetDetail(c *gin.Context) {
 
 	apierror.OK(c, video)
 }
+
+// RecordPlay 处理 POST /video/recordPlay
+func (h *Handler) RecordPlay(c *gin.Context) {
+	var req struct {
+		VideoID uint `json:"video_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	if err := h.service.RecordPlay(req.VideoID); err != nil {
+		apierror.FailServer(c, "记录播放失败")
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "播放记录成功"})
+}
+
+// ListHotVideos 处理 POST /video/listHot
+func (h *Handler) ListHotVideos(c *gin.Context) {
+	var req struct {
+		Limit int `json:"limit"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.Limit = 10 // 默认返回10个
+	}
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 10
+	}
+
+	items, err := h.service.ListHotVideos(req.Limit)
+	if err != nil {
+		apierror.FailServer(c, "查询失败")
+		return
+	}
+
+	apierror.OK(c, items)
+}

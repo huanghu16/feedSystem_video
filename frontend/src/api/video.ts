@@ -31,3 +31,19 @@ export function publishVideo(title: string, playUrl: string, coverUrl: string) {
 export function listByAuthor(authorId: number) {
   return postJson<VideoItem[]>('/video/listByAuthorID', { author_id: authorId })
 }
+
+/**
+ * 记录视频播放
+ * @param videoId 视频id
+ */
+export function recordPlay(videoId: number) {
+  return postJson<void>('/video/recordPlay', { video_id: videoId })
+}
+
+/**
+ * 获取热门视频列表（按播放量排序）
+ * @param limit 返回数量，默认10
+ */
+export function listHotVideos(limit: number = 10) {
+  return postJson<VideoItem[]>('/video/listHot', { limit })
+}

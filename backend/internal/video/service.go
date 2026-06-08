@@ -181,3 +181,32 @@ func (s *Service) ListComments(videoID uint) ([]CommentItem, error) {
 	}
 	return items, nil
 }
+
+// RecordPlay 记录视频播放
+func (s *Service) RecordPlay(videoID uint) error {
+	return s.repo.IncrementPlayCount(videoID)
+}
+
+// ListHotVideos 获取热门视频列表
+func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
+	videos, err := s.repo.ListHotVideos(limit)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]VideoItem, len(videos))
+	for i, v := range videos {
+		items[i] = VideoItem{
+			ID:         v.ID,
+			AuthorID:   v.AuthorID,
+			Username:   v.Username,
+			Title:      v.Title,
+			PlayURL:    v.PlayURL,
+			CoverURL:   v.CoverURL,
+			LikesCount: v.LikesCount,
+			PlayCount:  v.PlayCount,
+			CreatedAt:  v.CreatedAt,
+		}
+	}
+	return items, nil
+}

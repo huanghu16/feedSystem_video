@@ -30,6 +30,17 @@ const router = createRouter({
             name: 'video-detail',
             component: () => import('../views/VideoDetailView.vue'),
         },
+        {   // 热榜
+            path: '/hot',
+            name: 'hot',
+            component: () => import('../views/HotView.vue'),
+        },
+        {   // 私信
+            path: '/messages',
+            name: 'messages',
+            component: () => import('../views/MessagesView.vue'),
+
+        },
     ],
 })
 

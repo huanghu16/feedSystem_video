@@ -9,6 +9,7 @@ type FeedVideoItem struct {
 	PlayURL    string `json:"play_url"`    // 播放地址
 	CoverURL   string `json:"cover_url"`   // 封面地址
 	LikesCount int    `json:"likes_count"` // 点赞数
+	PlayCount  int    `json:"play_count"`  // 播放量
 }
 
 // ListLatestRequest 最新视频请求

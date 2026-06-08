@@ -1,14 +1,5 @@
 <template>
   <div class="home">
-    <!-- 顶部导航 -->
-    <div class="header">
-      <h2>推荐</h2>
-      <el-button v-if="auth.isLoggedIn" type="primary" size="small" @click="showUpload = true">
-        + 发布
-      </el-button>
-      <el-button v-else size="small" @click="router.push('/account')">登录</el-button>
-    </div>
-
     <!-- 视频列表 -->
     <div class="video-list">
       <div
@@ -45,10 +36,16 @@
               <el-icon><ChatDotRound /></el-icon>
               评论
             </el-button>
+            <el-button size="small" class="play-count-btn">
+              <el-icon><VideoPlay /></el-icon>
+              {{ video.play_count || 0 }}
+            </el-button>
           </div>
         </div>
       </div>
     </div>
+
+    <el-empty v-if="videos.length === 0" description="暂无视频" />
 
     <!-- 评论抽屉 -->
     <el-drawer v-model="commentDrawer" title="评论" size="400px" :with-header="false">
@@ -75,29 +72,6 @@
         </div>
       </div>
     </el-drawer>
-
-    <!-- 上传对话框 -->
-    <el-dialog v-model="showUpload" title="发布视频" width="500px">
-      <el-form label-position="top">
-        <el-form-item label="选择视频">
-          <el-upload
-            accept="video/*"
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :limit="1"
-          >
-            <el-button type="primary">选择文件</el-button>
-          </el-upload>
-        </el-form-item>
-        <el-form-item label="标题">
-          <el-input v-model="uploadTitle" placeholder="给你的视频起个标题" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showUpload = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="handleUpload">发布</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -108,39 +82,30 @@ import { ElMessage } from 'element-plus'
 import { VideoPlay, Star, ChatDotRound } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { listLatest } from '../api/feed'
-import { uploadVideo, publishVideo } from '../api/video'
 import { like, unlike, isLiked } from '../api/like'
 import { listComments, publishComment } from '../api/comment'
+import { recordPlay } from '../api/video'
 import type { FeedVideoItem, CommentItem } from '../api/types'
 
-const router = useRouter()   // 用于页面跳转
-const auth = useAuthStore()  // 用于获取当前登录用户信息
+const router = useRouter()
+const auth = useAuthStore()
 
+const videos = ref<(FeedVideoItem & { isLiked?: boolean })[]>([])
+const playingId = ref<number | null>(null)
+const commentDrawer = ref(false)
+const comments = ref<CommentItem[]>([])
+const currentVideoId = ref(0)
+const newComment = ref('')
 
-const videos = ref<(FeedVideoItem & { isLiked?: boolean })[]>([])  // 视频列表
-const playingId = ref<number | null>(null) // 当前正在播放的视频id，null表示没有视频在播放
-const commentDrawer = ref(false) // 评论抽屉
-const comments = ref<CommentItem[]>([]) // 评论列表
-const currentVideoId = ref(0) // 当前视频的id
-const newComment = ref('') // 新增的评论内容
-
-const showUpload = ref(false) // 上传对话框
-const uploadFile = ref<File | null>(null) // 上传的视频文件
-const uploadTitle = ref('') // 新增的视频标题
-const uploading = ref(false) // 上传中状态
-
-// 获取视频的完整url，如果已经是完整url则直接返回，否则拼接服务器地址
 function getFullUrl(path: string) {
   if (path.startsWith('http')) return path
   return `http://localhost:8080${path}`
 }
 
-// 页面加载时获取视频列表
 onMounted(async () => {
   await loadFeed()
 })
 
-// 加载视频列表并检查每个视频是否已点赞
 async function loadFeed() {
   try {
     const data = await listLatest()
@@ -150,16 +115,18 @@ async function loadFeed() {
   }
 }
 
-// 播放视频
 function playVideo(video: FeedVideoItem) {
   if (playingId.value === video.id) {
     playingId.value = null
   } else {
     playingId.value = video.id
+    // 记录播放
+    recordPlay(video.id).catch(err => {
+      console.error('记录播放失败:', err)
+    })
   }
 }
 
-// 点赞或取消点赞视频
 async function toggleLike(video: FeedVideoItem & { isLiked?: boolean }) {
   if (!auth.isLoggedIn) {
     ElMessage.warning('请先登录')
@@ -184,7 +151,6 @@ async function toggleLike(video: FeedVideoItem & { isLiked?: boolean }) {
   }
 }
 
-// 显示评论抽屉并加载评论列表
 async function showComments(video: FeedVideoItem) {
   currentVideoId.value = video.id
   commentDrawer.value = true
@@ -195,7 +161,6 @@ async function showComments(video: FeedVideoItem) {
   }
 }
 
-// 发表评论
 async function submitComment() {
   if (!newComment.value.trim()) return
   try {
@@ -208,35 +173,6 @@ async function submitComment() {
   }
 }
 
-// 处理文件选择
-function handleFileChange(file: any) {
-  uploadFile.value = file.raw
-}
-
-// 上传视频并发布
-async function handleUpload() {
-  if (!uploadFile.value || !uploadTitle.value.trim()) {
-    ElMessage.warning('请选择视频并填写标题')
-    return
-  }
-
-  uploading.value = true
-  try {
-    const uploadRes = await uploadVideo(uploadFile.value)
-    await publishVideo(uploadTitle.value, uploadRes.play_url, '')
-    ElMessage.success('发布成功')
-    showUpload.value = false
-    uploadTitle.value = ''
-    uploadFile.value = null
-    await loadFeed()
-  } catch {
-    ElMessage.error('发布失败')
-  } finally {
-    uploading.value = false
-  }
-}
-
-// 格式化时间为中文格式
 function formatTime(time: string) {
   return new Date(time).toLocaleString('zh-CN')
 }
@@ -246,23 +182,6 @@ function formatTime(time: string) {
 .home {
   max-width: 800px;
   margin: 0 auto;
-  padding: 20px;
-  min-height: 100vh;
-  background: #1a1a2e;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header h2 {
-  color: #fff;
-  font-size: 20px;
 }
 
 .video-list {
@@ -337,6 +256,15 @@ function formatTime(time: string) {
   border-color: #e94560;
 }
 
+.play-count-btn {
+  cursor: default;
+}
+
+.play-count-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 /* 评论抽屉 */
 .comment-drawer {
   display: flex;
@@ -390,23 +318,5 @@ function formatTime(time: string) {
 
 .comment-input :deep(.el-input__inner) {
   color: #fff;
-}
-
-/* 上传对话框 */
-:deep(.el-dialog) {
-  background: #1a1a2e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-:deep(.el-dialog__title) {
-  color: #fff;
-}
-
-:deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-:deep(.el-upload) {
-  color: rgba(255, 255, 255, 0.5);
 }
 </style>

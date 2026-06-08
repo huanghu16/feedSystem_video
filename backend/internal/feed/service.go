@@ -55,6 +55,7 @@ func (s *Service) ListLatest() ([]FeedVideoItem, error) {
 			PlayURL:    v.PlayURL,    // 播放地址
 			CoverURL:   v.CoverURL,   // 封面
 			LikesCount: v.LikesCount, // 点赞数
+			PlayCount:  v.PlayCount,  // 播放量
 		}
 	}
 
