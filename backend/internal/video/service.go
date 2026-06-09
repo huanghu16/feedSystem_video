@@ -69,14 +69,16 @@ func (s *Service) ListByAuthor(authorID uint) ([]VideoItem, error) {
 	items := make([]VideoItem, len(videos))
 	for i, v := range videos {
 		items[i] = VideoItem{
-			ID:         v.ID,
-			AuthorID:   v.AuthorID, // 作者ID
-			Username:   v.Username,
-			Title:      v.Title,
-			PlayURL:    v.PlayURL,    // 播放地址
-			CoverURL:   v.CoverURL,   // 封面地址
-			LikesCount: v.LikesCount, // 点赞数
-			CreatedAt:  v.CreatedAt,  // 创建时间
+			ID:            v.ID,
+			AuthorID:      v.AuthorID, // 作者ID
+			Username:      v.Username,
+			Title:         v.Title,
+			PlayURL:       v.PlayURL,       // 播放地址
+			CoverURL:      v.CoverURL,      // 封面地址
+			LikesCount:    v.LikesCount,    // 点赞数
+			PlayCount:     v.PlayCount,     // 播放数
+			CommentsCount: v.CommentsCount, // 评论数
+			CreatedAt:     v.CreatedAt,     // 创建时间
 		}
 	}
 	return items, nil

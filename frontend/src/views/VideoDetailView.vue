@@ -1,7 +1,8 @@
 <template>
   <div class="video-detail">
-    <el-button class="back-btn" text @click="router.back()">
-      <el-icon><ArrowLeft /></el-icon> 返回
+    <el-button class="back-btn" @click="router.back()">
+      <el-icon><ArrowLeft /></el-icon>
+      返回
     </el-button>
 
     <div v-if="video" class="content">
@@ -129,8 +130,19 @@ async function toggleLike() {
 }
 
 .back-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
   margin-bottom: 16px;
+}
+
+.back-btn:hover {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: #e94560;
+  backdrop-filter: blur(15px);
 }
 
 .main-video {

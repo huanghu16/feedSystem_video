@@ -60,3 +60,20 @@ type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
 }
+
+// ProfileResponse 用户资料响应
+type ProfileResponse struct {
+	ID             uint   `json:"id"`
+	Username       string `json:"username"`
+	AvatarURL      string `json:"avatar_url"`
+	Bio            string `json:"bio"`             // 简介
+	FansCount      int64  `json:"fans_count"`      // 粉丝数
+	FollowingCount int64  `json:"following_count"` // 关注数
+	VideoCount     int64  `json:"video_count"`
+	LikesCount     int64  `json:"likes_count"`
+}
+
+// GetProfileRequest 获取用户资料请求
+type GetProfileRequest struct {
+	UserID uint `json:"user_id" binding:"required"`
+}

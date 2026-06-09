@@ -83,3 +83,39 @@ func CheckPassword(hashedPassword, password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 	return err == nil
 }
+
+// GetProfileWithStats 获取用户资料和统计信息
+func (r *Repo) GetProfileWithStats(userID uint) (*ProfileResponse, error) {
+	var account Account // 用户表
+	// 查询用户表
+	if err := db.DB.First(&account, userID).Error; err != nil {
+		return nil, err
+	}
+
+	var fansCount int64 // 粉丝数
+	db.DB.Table("socials").Where("vlogger_id = ?", userID).Count(&fansCount)
+
+	var followingCount int64 // 关注数
+	db.DB.Table("socials").Where("follower_id = ?", userID).Count(&followingCount)
+
+	var videoCount int64 // 视频数
+	db.DB.Table("videos").Where("author_id = ?", userID).Count(&videoCount)
+
+	var likesCount int64 // 点赞数
+	db.DB.Table("likes").
+		Joins("JOIN videos ON likes.video_id = videos.id").
+		Where("videos.author_id = ?", userID).
+		Distinct("likes.id").
+		Count(&likesCount)
+
+	return &ProfileResponse{
+		ID:             account.ID,
+		Username:       account.Username,
+		AvatarURL:      account.AvatarURL,
+		Bio:            account.Bio,
+		FansCount:      fansCount,
+		FollowingCount: followingCount,
+		VideoCount:     videoCount,
+		LikesCount:     likesCount,
+	}, nil
+}

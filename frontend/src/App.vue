@@ -17,10 +17,17 @@
           <span>热榜</span>
         </router-link>
 
+
         <router-link v-if="auth.isLoggedIn" to="/video/publish" class="nav-item">
           <el-icon><Plus /></el-icon>
           <span>发布</span>
         </router-link>
+
+
+         <router-link v-if="auth.isLoggedIn" to="/profile" class="nav-item" :class="{ active: route.path === '/profile' }">
+           <el-icon><User /></el-icon>
+           <span>我的</span>
+         </router-link>
 
         <router-link v-if="auth.isLoggedIn" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }">
           <el-icon><Setting /></el-icon>
@@ -101,10 +108,10 @@ const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/': '推荐',
     '/hot': '热榜',
-    '/messages': '私信',
-    '/account': '我的',
-    '/settings': '设置',
     '/video/publish': '发布',
+    '/profile': '我的',
+    '/settings': '设置',
+
   }
   return titles[route.path] || 'FeedVideo'
 })
@@ -151,8 +158,11 @@ body {
 }
 
 .logo {
-  padding: 0 24px 24px;
+  padding: 0 14px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .logo h1 {
@@ -160,6 +170,7 @@ body {
   background: linear-gradient(135deg, #e94560, #ff6b8a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  margin: 0;
 }
 
 .nav-menu {

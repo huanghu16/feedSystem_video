@@ -16,14 +16,25 @@ export function findByID(id: number) {
     return postJson<Account>('/account/findByID', { id })
 }
 
-// 查询用户主页
-export function getProfile(id: number) {
-    return postJson<Account>('/account/getProfile', { id })
-}
-
 // 上传头像
 export function uploadAvatar(file: File) {
     const formData = new FormData()
     formData.append('file', file)
     return postForm<{ avatar_url: string }>('/account/uploadAvatar', formData)
+}
+
+// 获取用户资料（包含统计信息）
+export interface ProfileInfo {
+    id: number
+    username: string
+    avatar_url: string
+    bio: string
+    fans_count: number
+    following_count: number
+    video_count: number
+    likes_count: number
+}
+
+export function getProfile(userId: number) {
+    return postJson<ProfileInfo>('/account/getProfile', { user_id: userId })
 }

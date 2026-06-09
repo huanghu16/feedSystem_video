@@ -64,3 +64,20 @@ func (h *Handler) Login(c *gin.Context) {
 
 	apierror.OK(c, resp)
 }
+
+// GetProfile 处理 POST /account/getProfile
+func (h *Handler) GetProfile(c *gin.Context) {
+	var req GetProfileRequest // 从 JWT 获取当前用户 ID
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	profile, err := h.service.GetProfile(req.UserID)
+	if err != nil {
+		apierror.FailServer(c, "获取用户资料失败")
+		return
+	}
+
+	apierror.OK(c, profile)
+}

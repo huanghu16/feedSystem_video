@@ -85,3 +85,12 @@ func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
 		ExpiresIn:    config.C.JWT.AccessTTL,
 	}, nil
 }
+
+// GetProfile 获取用户资料
+func (s *Service) GetProfile(userID uint) (*ProfileResponse, error) {
+	profile, err := s.repo.GetProfileWithStats(userID)
+	if err != nil {
+		return nil, err
+	}
+	return profile, nil
+}

@@ -35,7 +35,7 @@ func SetupRouter() *gin.Engine {
 	{
 		accountGroup.POST("/register", handler.Register)
 		accountGroup.POST("/login", handler.Login)
-
+		accountGroup.POST("/getProfile", handler.GetProfile)
 	}
 
 	// --- Video 模块 ---

@@ -41,6 +41,12 @@ const router = createRouter({
             meta: { requiresAuth: true },  // 需要登录
             component: () => import('../views/PublishView.vue'),
         },
+        {   // 我的（个人资料）
+            path: '/profile',
+            name: 'profile',
+            meta: { requiresAuth: true },  // 需要登录
+            component: () => import('../views/ProfileView.vue'),
+        },
     ],
 })
 
