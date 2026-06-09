@@ -1,5 +1,11 @@
 <template>
   <div class="home">
+    <!-- 搜索结果提示 -->
+    <div v-if="searchKeyword" class="search-info">
+      <span>搜索 "{{ searchKeyword }}" 的结果</span>
+      <el-button size="small" @click="clearSearch">清除搜索</el-button>
+    </div>
+
     <!-- 视频列表 -->
     <div class="video-list">
       <div
@@ -22,7 +28,7 @@
         </div>
         <div class="video-info">
           <h3>{{ video.title }}</h3>
-          <p>@{{ video.username }}</p>
+          <p class="author">@{{ video.username }}</p>
           <div class="actions">
             <el-button
               :type="video.isLiked ? 'danger' : 'default'"
@@ -40,12 +46,41 @@
               <el-icon><VideoPlay /></el-icon>
               {{ video.play_count || 0 }}
             </el-button>
+            <el-button
+              v-if="auth.isLoggedIn && auth.user?.id !== video.author_id"
+              :type="video.isFollowing ? 'success' : 'default'"
+              size="small"
+              @click.stop="toggleFollow(video)"
+              class="follow-btn"
+            >
+              <el-icon><UserFilled /></el-icon>
+              {{ video.isFollowing ? '已关注' : '关注' }}
+            </el-button>
           </div>
         </div>
       </div>
     </div>
 
-    <el-empty v-if="videos.length === 0" description="视频加载中..." />
+    <el-empty v-if="videos.length === 0 && !loading" :description="searchKeyword ? '未找到相关视频' : '视频加载中...'" />
+
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading">
+      <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+      <span>加载中...</span>
+    </div>
+
+    <!-- 分页组件 -->
+    <div v-if="total > 0" class="pagination">
+      <el-pagination
+        v-model:current-page="currentPage"
+        :page-size="pageSize"
+        :total="total"
+        layout="prev, pager, next, jumper, total"
+        prev-text="上一页"
+        next-text="下一页"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <!-- 评论抽屉 -->
     <el-drawer v-model="commentDrawer" title="评论" size="400px" :with-header="false" class="comment-drawer-wrapper">
@@ -76,26 +111,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, Star, ChatDotRound } from '@element-plus/icons-vue'
+import { VideoPlay, Star, ChatDotRound, Loading, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { listLatest } from '../api/feed'
 import { like, unlike, isLiked } from '../api/like'
 import { listComments, publishComment } from '../api/comment'
-import { recordPlay } from '../api/video'
+import { recordPlay, searchVideos } from '../api/video'
+import { follow as followUser, unfollow as unfollowUser } from '../api/social'
+import { postJson } from '../api/client'
 import type { FeedVideoItem, CommentItem } from '../api/types'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
-const videos = ref<(FeedVideoItem & { isLiked?: boolean })[]>([])
+const videos = ref<(FeedVideoItem & { isLiked?: boolean; isFollowing?: boolean })[]>([])
 const playingId = ref<number | null>(null)
 const commentDrawer = ref(false)
 const comments = ref<CommentItem[]>([])
 const currentVideoId = ref(0)
 const newComment = ref('')
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const loading = ref(false)
+const searchKeyword = ref('')
 
 function getFullUrl(path: string) {
   if (path.startsWith('http')) return path
@@ -103,15 +148,78 @@ function getFullUrl(path: string) {
 }
 
 onMounted(async () => {
-  await loadFeed()
+  const q = route.query.q as string
+  if (q) {
+    searchKeyword.value = q
+    await loadSearchResults(1)
+  } else {
+    await loadFeed()
+  }
+})
+
+watch(() => route.query.q, async (newQ) => {
+  if (newQ) {
+    searchKeyword.value = newQ
+    await loadSearchResults(1)
+  } else {
+    searchKeyword.value = ''
+    await loadFeed()
+  }
 })
 
 async function loadFeed() {
   try {
     const data = await listLatest()
-    videos.value = data
+    videos.value = data.map(v => ({ ...v, isLiked: false, isFollowing: false }))
+    total.value = data.length
+
+    if (auth.isLoggedIn) {
+      await Promise.all(
+        videos.value.map(async (video) => {
+          if (auth.user?.id !== video.author_id) {
+            try {
+              const result = await postJson<{ is_following: boolean }>('/social/isFollowing', {
+                vlogger_id: video.author_id
+              })
+              video.isFollowing = result.is_following
+            } catch {}
+          }
+        })
+      )
+    }
   } catch {
     ElMessage.error('加载失败')
+  }
+}
+
+async function loadSearchResults(page: number) {
+  if (!searchKeyword.value.trim()) return
+
+  loading.value = true
+  try {
+    const result = await searchVideos(searchKeyword.value, page, pageSize.value)
+    videos.value = result.list.map(item => ({ ...item, isLiked: false, isFollowing: false }))
+    total.value = result.total
+    currentPage.value = result.page
+
+    if (auth.isLoggedIn) {
+      await Promise.all(
+        videos.value.map(async (video) => {
+          if (auth.user?.id !== video.author_id) {
+            try {
+              const result = await postJson<{ is_following: boolean }>('/social/isFollowing', {
+                vlogger_id: video.author_id
+              })
+              video.isFollowing = result.is_following
+            } catch {}
+          }
+        })
+      )
+    }
+  } catch {
+    ElMessage.error('搜索失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -120,7 +228,6 @@ function playVideo(video: FeedVideoItem) {
     playingId.value = null
   } else {
     playingId.value = video.id
-    // 记录播放
     recordPlay(video.id).catch(err => {
       console.error('记录播放失败:', err)
     })
@@ -151,6 +258,28 @@ async function toggleLike(video: FeedVideoItem & { isLiked?: boolean }) {
   }
 }
 
+async function toggleFollow(video: FeedVideoItem & { isFollowing?: boolean }) {
+  if (!auth.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/account')
+    return
+  }
+
+  try {
+    if (video.isFollowing) {
+      await unfollowUser(video.author_id)
+      video.isFollowing = false
+      ElMessage.success('取消关注成功')
+    } else {
+      await followUser(video.author_id)
+      video.isFollowing = true
+      ElMessage.success('关注成功')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
+  }
+}
+
 async function showComments(video: FeedVideoItem) {
   currentVideoId.value = video.id
   commentDrawer.value = true
@@ -176,10 +305,21 @@ async function submitComment() {
 function formatTime(time: string) {
   return new Date(time).toLocaleString('zh-CN')
 }
+
+async function handlePageChange(page: number) {
+  if (searchKeyword.value) {
+    await loadSearchResults(page)
+  } else {
+    ElMessage.info('首页暂不支持分页')
+  }
+}
+
+function clearSearch() {
+  window.location.href = '/'
+}
 </script>
 
 <style>
-/* 全局样式 - 覆盖 Element Plus Drawer 默认样式 */
 .comment-drawer-wrapper .el-drawer__body {
   padding: 0 !important;
   margin: 0 !important;
@@ -195,6 +335,28 @@ function formatTime(time: string) {
 .home {
   max-width: 800px;
   margin: 0 auto;
+}
+
+.search-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(233, 69, 96, 0.1);
+  border: 1px solid rgba(233, 69, 96, 0.3);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: #fff;
+}
+
+.search-info span {
+  font-size: 14px;
+}
+
+.search-info :deep(.el-button) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .video-list {
@@ -256,6 +418,7 @@ function formatTime(time: string) {
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .actions :deep(.el-button) {
@@ -269,6 +432,22 @@ function formatTime(time: string) {
   border-color: #e94560;
 }
 
+.actions :deep(.el-button--success) {
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+  border-color: transparent;
+  color: #fff;
+}
+
+.actions :deep(.el-button--success:hover) {
+  background: linear-gradient(135deg, #d63851, #e94560);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+}
+
+.follow-btn {
+  min-width: 80px;
+}
+
 .play-count-btn {
   cursor: default;
 }
@@ -278,7 +457,84 @@ function formatTime(time: string) {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* 评论抽屉内容 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding: 16px 0;
+}
+
+.pagination :deep(.el-pagination) {
+  --el-pagination-bg-color: rgba(255, 255, 255, 0.05);
+  --el-pagination-text-color: rgba(255, 255, 255, 0.8);
+  --el-pagination-border-color: rgba(255, 255, 255, 0.1);
+  --el-pagination-hover-color: #e94560;
+}
+
+.pagination :deep(.el-pager li) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 32px;
+  height: 32px;
+  line-height: 32px;
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
+.pagination :deep(.el-pager li.is-active) {
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+  border-color: #e94560;
+  color: #fff;
+}
+
+.pagination :deep(.el-pager li:hover) {
+  color: #e94560;
+}
+
+.pagination :deep(.btn-prev),
+.pagination :deep(.btn-next) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  padding: 0 12px;
+}
+
+.pagination :deep(.btn-prev:hover),
+.pagination :deep(.btn-next:hover) {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: #e94560;
+}
+
+.pagination :deep(.el-pagination__jump) {
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: 16px;
+}
+
+.pagination :deep(.el-pagination__total) {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pagination :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pagination :deep(.el-input__inner) {
+  color: #fff;
+}
+
 .comment-drawer-content {
   display: flex;
   flex-direction: column;
@@ -355,4 +611,4 @@ function formatTime(time: string) {
 .comment-input :deep(.el-button--primary:active) {
   transform: translateY(0);
 }
- </style>
+</style>

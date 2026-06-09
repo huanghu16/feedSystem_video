@@ -103,3 +103,23 @@ func (h *Handler) GetCounts(c *gin.Context) {
 
 	apierror.OK(c, counts)
 }
+
+// IsFollowing 处理 POST /social/isFollowing
+func (h *Handler) IsFollowing(c *gin.Context) {
+	var req IsFollowingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	followerID, _ := c.Get(jwt.AccountIDKey)
+	followerIDUint := followerID.(uint)
+
+	resp, err := h.service.CheckIsFollowing(followerIDUint, req.VloggerID)
+	if err != nil {
+		apierror.FailServer(c, "查询失败")
+		return
+	}
+
+	apierror.OK(c, resp)
+}

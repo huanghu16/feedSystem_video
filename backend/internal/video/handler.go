@@ -279,3 +279,27 @@ func (h *Handler) ListHotVideos(c *gin.Context) {
 
 	apierror.OK(c, items)
 }
+
+// SearchVideos 处理 POST /video/search
+func (h *Handler) SearchVideos(c *gin.Context) {
+	var req SearchVideosRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Size <= 0 || req.Size > 50 {
+		req.Size = 10
+	}
+
+	resp, err := h.service.SearchVideos(req.Keyword, req.Page, req.Size)
+	if err != nil {
+		apierror.FailServer(c, "搜索失败")
+		return
+	}
+
+	apierror.OK(c, resp)
+}

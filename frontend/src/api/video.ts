@@ -47,3 +47,25 @@ export function recordPlay(videoId: number) {
 export function listHotVideos(limit: number = 10) {
   return postJson<VideoItem[]>('/video/listHot', { limit })
 }
+
+/**
+ * 搜索视频
+ * @param keyword 搜索关键词
+ * @param page 页码，默认1
+ * @param size 每页数量，默认10
+ */
+export interface SearchVideosResponse {
+  list: VideoItem[]
+  total: number
+  page: number
+  size: number
+  has_more: boolean
+}
+
+export function searchVideos(keyword: string, page: number = 1, size: number = 10) {
+  return postJson<SearchVideosResponse>('/video/search', { 
+    keyword, 
+    page, 
+    size 
+  })
+}

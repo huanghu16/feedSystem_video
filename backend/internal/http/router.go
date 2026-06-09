@@ -58,7 +58,9 @@ func SetupRouter() *gin.Engine {
 	// 记录视频播放
 	r.POST("/video/recordPlay", videoHandler.RecordPlay)
 	// 获取热门视频列表
-	r.POST("/video/listHot", videoHandler.ListHotVideos) //新增
+	r.POST("/video/listHot", videoHandler.ListHotVideos)
+	// 搜索视频
+	r.POST("/video/search", videoHandler.SearchVideos) //新增
 
 	// 静态文件服务（让上传的视频可以通过 URL 访问）
 	r.Static("/static", "./uploads")
@@ -90,6 +92,7 @@ func SetupRouter() *gin.Engine {
 		socialGroup.Use(jwt.JWTAuth())
 		socialGroup.POST("/follow", socialHandler.Follow)
 		socialGroup.POST("/unfollow", socialHandler.Unfollow)
+		socialGroup.POST("/isFollowing", socialHandler.IsFollowing)
 		socialGroup.POST("/getAllFollowers", socialHandler.GetFollowers)
 		socialGroup.POST("/getAllVloggers", socialHandler.GetVloggers)
 		socialGroup.POST("/getCounts", socialHandler.GetCounts)

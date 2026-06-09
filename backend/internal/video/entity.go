@@ -128,3 +128,19 @@ type CommentItem struct {
 type ListCommentsRequest struct {
 	VideoID uint `json:"video_id" binding:"required"`
 }
+
+// SearchVideosRequest 搜索视频请求
+type SearchVideosRequest struct {
+	Keyword string `json:"keyword" binding:"required"`
+	Page    int    `json:"page"`
+	Size    int    `json:"size"`
+}
+
+// SearchVideosResponse 搜索视频响应
+type SearchVideosResponse struct {
+	List    []VideoItem `json:"list"`
+	Total   int64       `json:"total"`
+	Page    int         `json:"page"`
+	Size    int         `json:"size"`
+	HasMore bool        `json:"has_more"`
+}

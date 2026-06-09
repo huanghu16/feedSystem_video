@@ -115,3 +115,14 @@ func (s *Service) GetCounts(userID uint) (*FollowCountsResponse, error) {
 		VloggersCount:  vloggers,
 	}, nil
 }
+
+// CheckIsFollowing 检查是否已关注
+func (s *Service) CheckIsFollowing(followerID, vloggerID uint) (*IsFollowingResponse, error) {
+	isFollowing, err := s.repo.IsFollowing(followerID, vloggerID)
+	if err != nil {
+		return nil, err
+	}
+	return &IsFollowingResponse{
+		IsFollowing: isFollowing,
+	}, nil
+}

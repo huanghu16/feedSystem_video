@@ -139,3 +139,36 @@ func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
 		Find(&videos).Error
 	return videos, err
 }
+
+// SearchVideos 搜索视频（支持分页）
+func (r *Repo) SearchVideos(keyword string, page, size int) ([]Video, int64, error) {
+	var videos []Video
+	var total int64
+
+	// 默认分页参数
+	if page <= 0 {
+		page = 1
+	}
+	if size <= 0 || size > 50 {
+		size = 10
+	}
+
+	// 计算偏移量
+	offset := (page - 1) * size
+
+	// 构建查询：模糊匹配标题或用户名
+	query := db.DB.Model(&Video{}).Where("title LIKE ? OR username LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 获取分页数据
+	err := query.Order("created_at DESC").
+		Limit(size).
+		Offset(offset).
+		Find(&videos).Error
+
+	return videos, total, err
+}

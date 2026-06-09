@@ -54,6 +54,16 @@ type VloggerItem struct {
 	Username string `json:"username"`
 }
 
+// IsFollowingRequest 检查是否关注请求
+type IsFollowingRequest struct {
+	VloggerID uint `json:"vlogger_id" binding:"required"`
+}
+
+// IsFollowingResponse 检查是否关注响应
+type IsFollowingResponse struct {
+	IsFollowing bool `json:"is_following"`
+}
+
 // FollowCountsResponse 粉丝/关注数响应
 type FollowCountsResponse struct {
 	FollowersCount int64 `json:"followers_count"` // 粉丝数

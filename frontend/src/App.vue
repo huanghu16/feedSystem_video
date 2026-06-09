@@ -47,14 +47,20 @@
       <!-- 顶部栏 -->
       <header class="topbar">
         <h2>{{ pageTitle }}</h2>
-        <div class="search-box">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索视频..."
-            prefix-icon="Search"
-            clearable
-            @keyup.enter="handleSearch"
-          />
+        <div class="search-container">
+          <div class="search-box">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索视频..."
+              prefix-icon="Search"
+              clearable
+              @keyup.enter="handleSearch"
+            />
+          </div>
+          <el-button class="search-btn" @click="handleSearch" :disabled="!searchQuery.trim()">
+            <el-icon><Search /></el-icon>
+            搜索
+          </el-button>
         </div>
         <div class="top-actions">
           <el-button v-if="!auth.isLoggedIn" class="glass-btn" @click="router.push('/account')">
@@ -80,7 +86,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, TrendCharts, Plus, ChatDotRound,
-  User, Setting
+  User, Setting, Search
 } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
 
@@ -261,9 +267,15 @@ body {
   min-width: 80px;
 }
 
+.search-container {
+  flex: 1;
+  max-width: 500px;
+  display: flex;
+  gap: 12px;
+}
+
 .search-box {
   flex: 1;
-  max-width: 400px;
 }
 
 .search-box :deep(.el-input__wrapper) {
@@ -279,6 +291,26 @@ body {
 
 .search-box :deep(.el-input__inner::placeholder) {
   color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.search-btn {
+  background: linear-gradient(135deg, #e94560, #ff6b8a) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.search-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d63851, #ff5a7a) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .top-actions {

@@ -216,3 +216,42 @@ func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
 	log.Printf("[ListHotVideos] 查询成功，返回 %d 条记录", len(items))
 	return items, nil
 }
+
+// SearchVideos 搜索视频
+func (s *Service) SearchVideos(keyword string, page, size int) (*SearchVideosResponse, error) {
+	if keyword == "" {
+		return nil, errors.New("搜索关键词不能为空")
+	}
+
+	videos, total, err := s.repo.SearchVideos(keyword, page, size) // 调用 repo, 返回视频列表和总数
+	if err != nil {
+		log.Printf("[SearchVideos] 搜索失败: %v", err)
+		return nil, err
+	}
+
+	items := make([]VideoItem, len(videos))
+	for i, v := range videos {
+		items[i] = VideoItem{
+			ID:            v.ID,
+			AuthorID:      v.AuthorID,
+			Username:      v.Username,
+			Title:         v.Title,
+			PlayURL:       v.PlayURL,
+			CoverURL:      v.CoverURL,
+			LikesCount:    v.LikesCount,
+			PlayCount:     v.PlayCount,
+			CommentsCount: v.CommentsCount,
+			CreatedAt:     v.CreatedAt,
+		}
+	}
+
+	hasMore := int64(page*size) < total
+
+	return &SearchVideosResponse{
+		List:    items,
+		Total:   total,
+		Page:    page,
+		Size:    size,
+		HasMore: hasMore,
+	}, nil
+}
