@@ -103,12 +103,38 @@ func (r *Repo) ListCommentsByVideoID(videoID uint) ([]Comment, error) {
 	return comments, err
 }
 
-// ==================== 热门列表 ====================
+// IncrementCommentsCount 增加视频评论数
+func (r *Repo) IncrementCommentsCount(videoID uint) error {
+	return db.DB.Model(&Video{}).
+		Where("id = ?", videoID).
+		UpdateColumn("comments_count", gorm.Expr("comments_count + ?", 1)).Error
+}
 
-// ListHotVideos 获取热门视频列表（按播放量倒序，限制数量）
+// DecrementCommentsCount 减少视频评论数（如果需要删除评论功能）
+func (r *Repo) DecrementCommentsCount(videoID uint) error {
+	return db.DB.Model(&Video{}).
+		Where("id = ?", videoID).
+		UpdateColumn("comments_count", gorm.Expr("GREATEST(comments_count - ?, 0)", 1)).Error
+}
+
+// ==================== 热门列表 ====================（添加算法）
+
+// ListHotVideos 获取热门视频列表（按时间衰减算法排序，限制数量）
 func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
 	var videos []Video
-	err := db.DB.Order("play_count DESC").
+	// 使用 MySQL 的时间函数计算热度分数
+	// 优化后的热度算法：热度 = play_count / ((时间差小时数 + 24) ^ 1.2)
+	// 调整说明：
+	// 1. 基数从 2 改为 24：给新视频一个合理的基础时间窗口（24小时）
+	// 2. 指数从 1.5 改为 1.2：让时间衰减更平缓，播放量权重更大
+	// 这样既保留了时间衰减特性，又确保高播放量视频能排在前面
+	err := db.DB.Select(`*, 
+		COALESCE(play_count, 0) * 1.0 / 
+		POWER(
+			TIMESTAMPDIFF(HOUR, created_at, NOW()) + 24, 
+			1.2
+		) as hot_score`).
+		Order("hot_score DESC").
 		Limit(limit).
 		Find(&videos).Error
 	return videos, err

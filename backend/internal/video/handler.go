@@ -55,6 +55,13 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 	}
 	defer file.Close()
 
+	// 检查文件大小（限制100MB）
+	const maxSize = 100 * 1024 * 1024 // 100MB
+	if header.Size > maxSize {
+		apierror.FailParam(c, fmt.Sprintf("文件大小不能超过100MB，当前文件大小: %.2fMB", float64(header.Size)/(1024*1024)))
+		return
+	}
+
 	// 生成唯一文件名：时间戳_原始文件名
 	filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
 	savePath := filepath.Join("uploads", filename)
@@ -71,10 +78,14 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 	defer out.Close()
 
 	// 复制文件内容
-	if _, err := io.Copy(out, file); err != nil {
-		apierror.FailServer(c, "写入文件失败")
+	written, err := io.Copy(out, file)
+	if err != nil {
+		apierror.FailServer(c, fmt.Sprintf("写入文件失败: %v", err))
 		return
 	}
+
+	// 记录日志
+	fmt.Printf("视频上传成功: %s (大小: %.2fMB)\n", filename, float64(written)/(1024*1024))
 
 	// 返回可访问的 URL
 	playURL := fmt.Sprintf("/static/%s", filename)

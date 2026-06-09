@@ -160,6 +160,9 @@ func (s *Service) PublishComment(req *PublishCommentRequest, accountID uint, use
 		return nil, err
 	}
 
+	// 增加视频评论数
+	_ = s.repo.IncrementCommentsCount(req.VideoID)
+
 	return comment, nil
 }
 
@@ -191,22 +194,25 @@ func (s *Service) RecordPlay(videoID uint) error {
 func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
 	videos, err := s.repo.ListHotVideos(limit)
 	if err != nil {
+		log.Printf("[ListHotVideos] 查询失败: %v", err)
 		return nil, err
 	}
 
 	items := make([]VideoItem, len(videos))
 	for i, v := range videos {
 		items[i] = VideoItem{
-			ID:         v.ID,
-			AuthorID:   v.AuthorID,
-			Username:   v.Username,
-			Title:      v.Title,
-			PlayURL:    v.PlayURL,
-			CoverURL:   v.CoverURL,
-			LikesCount: v.LikesCount,
-			PlayCount:  v.PlayCount,
-			CreatedAt:  v.CreatedAt,
+			ID:            v.ID,
+			AuthorID:      v.AuthorID,
+			Username:      v.Username,
+			Title:         v.Title,
+			PlayURL:       v.PlayURL,
+			CoverURL:      v.CoverURL,
+			LikesCount:    v.LikesCount,
+			PlayCount:     v.PlayCount,
+			CommentsCount: v.CommentsCount,
+			CreatedAt:     v.CreatedAt,
 		}
 	}
+	log.Printf("[ListHotVideos] 查询成功，返回 %d 条记录", len(items))
 	return items, nil
 }

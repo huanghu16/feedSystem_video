@@ -22,11 +22,6 @@
           <span>发布</span>
         </router-link>
 
-        <router-link to="/messages" class="nav-item" :class="{ active: route.path === '/messages' }">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>消息</span>
-        </router-link>
-
         <router-link v-if="auth.isLoggedIn" to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }">
           <el-icon><Setting /></el-icon>
           <span>设置</span>
@@ -65,7 +60,7 @@
           <el-button v-if="!auth.isLoggedIn" class="glass-btn" @click="router.push('/account')">
             登录
           </el-button>
-          <el-button v-else class="glass-btn" @click="showUpload = true">
+          <el-button v-else-if="route.path !== '/video/publish'" class="glass-btn" @click="router.push('/video/publish')">
             <el-icon><Plus /></el-icon>
             发布视频
           </el-button>
@@ -78,51 +73,22 @@
       </div>
     </main>
   </div>
-
-  <!-- 全局上传对话框 -->
-  <el-dialog v-model="showUpload" title="发布视频" width="500px" :close-on-click-modal="false">
-    <el-form label-position="top">
-      <el-form-item label="选择视频">
-        <el-upload
-          accept="video/*"
-          :auto-upload="false"
-          :on-change="handleFileChange"
-          :limit="1"
-        >
-          <el-button type="primary">选择文件</el-button>
-        </el-upload>
-      </el-form-item>
-      <el-form-item label="标题">
-        <el-input v-model="uploadTitle" placeholder="给你的视频起个标题" maxlength="256" show-word-limit />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="showUpload = false">取消</el-button>
-      <el-button type="primary" :loading="uploading" @click="handleUpload">发布</el-button>
-    </template>
-  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import {
   HomeFilled, TrendCharts, Plus, ChatDotRound,
   User, Setting
 } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
-import { uploadVideo, publishVideo } from './api/video'
 
 const route = useRoute()  // 当前路由
 const router = useRouter() // 路由实例
 const auth = useAuthStore() // 认证状态
 
 const searchQuery = ref('') // 搜索关键词
-const showUpload = ref(false) // 上传对话框显示状态
-const uploadFile = ref<File | null>(null) // 上传文件
-const uploadTitle = ref('') // 上传标题
-const uploading = ref(false) // 
 
 // 页面标题
 const pageTitle = computed(() => {
@@ -132,6 +98,7 @@ const pageTitle = computed(() => {
     '/messages': '私信',
     '/account': '我的',
     '/settings': '设置',
+    '/video/publish': '发布',
   }
   return titles[route.path] || 'FeedVideo'
 })
@@ -141,35 +108,6 @@ function handleSearch() {
   if (!searchQuery.value.trim()) return
   // 简单实现：跳转到首页并带搜索参数
   router.push({ path: '/', query: { q: searchQuery.value } })
-}
-
-// 上传视频
-function handleFileChange(file: any) {
-  uploadFile.value = file.raw
-}
-
-// 发布视频
-async function handleUpload() {
-  if (!uploadFile.value || !uploadTitle.value.trim()) {
-    ElMessage.warning('请选择视频并填写标题')
-    return
-  }
-
-  uploading.value = true
-  try {
-    const uploadRes = await uploadVideo(uploadFile.value)
-    await publishVideo(uploadTitle.value, uploadRes.play_url, '')
-    ElMessage.success('发布成功')
-    showUpload.value = false
-    uploadTitle.value = ''
-    uploadFile.value = null
-    // 刷新页面
-    router.go(0)
-  } catch {
-    ElMessage.error('发布失败')
-  } finally {
-    uploading.value = false
-  }
 }
 </script>
 
@@ -366,23 +304,5 @@ body {
 .content {
   flex: 1;
   padding: 24px 32px;
-}
-
-/* ===== 对话框样式覆盖 ===== */
-:deep(.el-dialog) {
-  background: #1a1a2e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-:deep(.el-dialog__title) {
-  color: #fff;
-}
-
-:deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-:deep(.el-upload) {
-  color: rgba(255, 255, 255, 0.5);
 }
 </style>

@@ -48,14 +48,15 @@ func (s *Service) ListLatest() ([]FeedVideoItem, error) {
 	items := make([]FeedVideoItem, len(videos))
 	for i, v := range videos {
 		items[i] = FeedVideoItem{
-			ID:         v.ID,         // 视频 ID
-			AuthorID:   v.AuthorID,   // 作者 ID
-			Username:   v.Username,   // 作者名
-			Title:      v.Title,      // 标题
-			PlayURL:    v.PlayURL,    // 播放地址
-			CoverURL:   v.CoverURL,   // 封面
-			LikesCount: v.LikesCount, // 点赞数
-			PlayCount:  v.PlayCount,  // 播放量
+			ID:            v.ID,            // 视频 ID
+			AuthorID:      v.AuthorID,      // 作者 ID
+			Username:      v.Username,      // 作者名
+			Title:         v.Title,         // 标题
+			PlayURL:       v.PlayURL,       // 播放地址
+			CoverURL:      v.CoverURL,      // 封面
+			LikesCount:    v.LikesCount,    // 点赞数
+			PlayCount:     v.PlayCount,     // 播放量
+			CommentsCount: v.CommentsCount, // 评论数
 		}
 	}
 

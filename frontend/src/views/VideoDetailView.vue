@@ -170,6 +170,8 @@ async function toggleLike() {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .comments h3 {
@@ -180,6 +182,8 @@ async function toggleLike() {
 .comment {
   padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .comment strong {
@@ -191,6 +195,8 @@ async function toggleLike() {
   color: #fff;
   font-size: 14px;
   margin-top: 4px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .loading {

@@ -26,6 +26,7 @@ export interface VideoItem {
     cover_url: string  // 封面
     likes_count: number  // 点赞数
     play_count: number  // 播放量
+    comments_count: number  // 评论数
     created_at: string  // 创建时间
 }
 
@@ -39,6 +40,7 @@ export interface FeedVideoItem {
     cover_url: string
     likes_count: number
     play_count: number  // 播放量
+    comments_count: number  // 评论数
 }
 
 // 评论信息

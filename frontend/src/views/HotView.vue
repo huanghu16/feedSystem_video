@@ -1,5 +1,9 @@
 <template>
   <div class="hot">
+    <div class="header-info">
+      <h2>🔥 实时热榜</h2>
+    </div>
+
     <div v-if="loading" class="loading">
       <el-icon class="is-loading"><Loading /></el-icon>
       <p>加载中...</p>
@@ -85,9 +89,10 @@ async function loadHotVideos() {
   try {
     const res = await listHotVideos(10)
     hotVideos.value = res
-  } catch (error) {
-    ElMessage.error('加载热榜失败')
-    console.error(error)
+  } catch (error: any) {
+    console.error('加载热榜失败:', error)
+    const errorMsg = error?.message || error?.payload?.message || '加载热榜失败'
+    ElMessage.error(errorMsg)
   } finally {
     loading.value = false
   }
@@ -104,6 +109,26 @@ onMounted(() => {
   padding: 24px;
   max-width: 900px;
   margin: 0 auto;
+}
+
+.header-info {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.header-info h2 {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg, #ff6b6b, #ffd93d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  margin: 0;
 }
 
 .loading, .empty {
@@ -137,6 +162,7 @@ onMounted(() => {
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .video-card:hover {

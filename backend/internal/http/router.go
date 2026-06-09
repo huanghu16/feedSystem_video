@@ -15,6 +15,9 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default() // 创建 Gin 引擎
 
+	// 设置最大 multipart 内存为 128MB（支持大文件上传）
+	r.MaxMultipartMemory = 128 << 20 // 128 MB
+
 	// 健康检查路由
 	r.GET("/healthz", func(c *gin.Context) {
 		apierror.OK(c, gin.H{"status": "ok"})

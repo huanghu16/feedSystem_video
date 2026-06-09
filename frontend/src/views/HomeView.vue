@@ -34,7 +34,7 @@
             </el-button>
             <el-button size="small" @click.stop="showComments(video)">
               <el-icon><ChatDotRound /></el-icon>
-              评论
+              {{ video.comments_count || 0 }}
             </el-button>
             <el-button size="small" class="play-count-btn">
               <el-icon><VideoPlay /></el-icon>
@@ -45,11 +45,11 @@
       </div>
     </div>
 
-    <el-empty v-if="videos.length === 0" description="暂无视频" />
+    <el-empty v-if="videos.length === 0" description="视频加载中..." />
 
     <!-- 评论抽屉 -->
-    <el-drawer v-model="commentDrawer" title="评论" size="400px" :with-header="false">
-      <div class="comment-drawer">
+    <el-drawer v-model="commentDrawer" title="评论" size="400px" :with-header="false" class="comment-drawer-wrapper">
+      <div class="comment-drawer-content">
         <h3>评论</h3>
         <div class="comment-list">
           <div v-for="c in comments" :key="c.id" class="comment-item">
@@ -66,7 +66,7 @@
             @keyup.enter="submitComment"
           >
             <template #append>
-              <el-button @click="submitComment">发送</el-button>
+              <el-button type="primary" @click="submitComment">发送</el-button>
             </template>
           </el-input>
         </div>
@@ -178,6 +178,19 @@ function formatTime(time: string) {
 }
 </script>
 
+<style>
+/* 全局样式 - 覆盖 Element Plus Drawer 默认样式 */
+.comment-drawer-wrapper .el-drawer__body {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.comment-drawer-wrapper .el-drawer {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+</style>
+
 <style scoped>
 .home {
   max-width: 800px;
@@ -265,24 +278,27 @@ function formatTime(time: string) {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* 评论抽屉 */
-.comment-drawer {
+/* 评论抽屉内容 */
+.comment-drawer-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
   background: #1a1a2e;
+  width: 100%;
 }
 
-.comment-drawer h3 {
+.comment-drawer-content h3 {
   color: #fff;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin: 0;
+  padding: 20px 24px 16px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 20px;
 }
 
 .comment-list {
   flex: 1;
   overflow-y: auto;
+  padding: 0 24px;
 }
 
 .comment-item {
@@ -307,8 +323,10 @@ function formatTime(time: string) {
 }
 
 .comment-input {
-  padding-top: 12px;
+  padding: 16px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  gap: 12px;
 }
 
 .comment-input :deep(.el-input__wrapper) {
@@ -319,4 +337,22 @@ function formatTime(time: string) {
 .comment-input :deep(.el-input__inner) {
   color: #fff;
 }
-</style>
+
+.comment-input :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #e94560, #ff6b8a) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.comment-input :deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #d63851, #ff5a7a) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.comment-input :deep(.el-button--primary:active) {
+  transform: translateY(0);
+}
+ </style>

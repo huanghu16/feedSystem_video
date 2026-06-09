@@ -8,16 +8,19 @@ import (
 
 // Video 视频表模型
 type Video struct {
-	ID         uint           `gorm:"primaryKey" json:"id"`
-	AuthorID   uint           `gorm:"index;not null" json:"author_id"`
-	Username   string         `gorm:"type:varchar(64);not null" json:"username"`
-	Title      string         `gorm:"type:varchar(256);not null" json:"title"`
-	PlayURL    string         `gorm:"type:varchar(512);not null" json:"play_url"`
-	CoverURL   string         `gorm:"type:varchar(512);default:''" json:"cover_url"`
-	LikesCount int            `gorm:"default:0" json:"likes_count"`
-	PlayCount  int            `gorm:"default:0" json:"play_count"`
-	CreatedAt  time.Time      `json:"created_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
+	ID            uint           `gorm:"primaryKey" json:"id"`
+	AuthorID      uint           `gorm:"index;not null" json:"author_id"`
+	Username      string         `gorm:"type:varchar(64);not null" json:"username"`
+	Title         string         `gorm:"type:varchar(256);not null" json:"title"`
+	PlayURL       string         `gorm:"type:varchar(512);not null" json:"play_url"`
+	CoverURL      string         `gorm:"type:varchar(512);default:''" json:"cover_url"`
+	LikesCount    int            `gorm:"default:0" json:"likes_count"`
+	PlayCount     int            `gorm:"default:0" json:"play_count"`
+	CommentsCount int            `gorm:"default:0" json:"comments_count"`  // 评论数 (新增)
+	HotScore      float64        `gorm:"-:all" json:"hot_score,omitempty"` // 热度分数（新增）（不存储在数据库，仅用于热榜查询）
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"` // 更新时间 (新增)
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (Video) TableName() string {
@@ -40,15 +43,16 @@ type ListByAuthorRequest struct {
 
 // VideoItem 视频列表项
 type VideoItem struct {
-	ID         uint      `json:"id"`
-	AuthorID   uint      `json:"author_id"`
-	Username   string    `json:"username"`
-	Title      string    `json:"title"`
-	PlayURL    string    `json:"play_url"`
-	CoverURL   string    `json:"cover_url"`
-	LikesCount int       `json:"likes_count"`
-	PlayCount  int       `json:"play_count"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID            uint      `json:"id"`
+	AuthorID      uint      `json:"author_id"`
+	Username      string    `json:"username"`
+	Title         string    `json:"title"`
+	PlayURL       string    `json:"play_url"`
+	CoverURL      string    `json:"cover_url"`
+	LikesCount    int       `json:"likes_count"`
+	PlayCount     int       `json:"play_count"`
+	CommentsCount int       `json:"comments_count"` // 新增
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // --- 点赞相关 ---

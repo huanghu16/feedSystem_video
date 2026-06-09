@@ -35,11 +35,11 @@ const router = createRouter({
             name: 'hot',
             component: () => import('../views/HotView.vue'),
         },
-        {   // 私信
-            path: '/messages',
-            name: 'messages',
-            component: () => import('../views/MessagesView.vue'),
-
+        {   // 发布视频
+            path: '/video/publish',
+            name: 'publish',
+            meta: { requiresAuth: true },  // 需要登录
+            component: () => import('../views/PublishView.vue'),
         },
     ],
 })
