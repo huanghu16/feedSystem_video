@@ -32,6 +32,7 @@ export interface VideoItem {
     created_at: string
 }
 
+// 视频列表
 export interface FeedVideoItem {
     id: number
     author_id: number
@@ -44,6 +45,7 @@ export interface FeedVideoItem {
     likes_count: number
     play_count: number
     comments_count: number
+    created_at: string
 }
 
 // 评论信息

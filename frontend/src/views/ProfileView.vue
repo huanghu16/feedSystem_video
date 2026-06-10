@@ -85,8 +85,9 @@
             <div v-else class="checkbox-unchecked"></div>
           </div>
           <div class="work-cover">
+            <img v-if="video.cover_url" :src="getFullUrl(video.cover_url)" class="cover-image" />
             <video
-              v-if="playingId === video.id"
+              v-else-if="playingId === video.id"
               :src="getFullUrl(video.play_url)"
               controls
               autoplay
@@ -578,6 +579,12 @@ async function handleBatchDelete() {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .cover-placeholder {

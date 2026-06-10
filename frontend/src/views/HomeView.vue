@@ -15,8 +15,9 @@
         @click="playVideo(video)"
       >
         <div class="video-cover">
+          <img v-if="video.cover_url" :src="getFullUrl(video.cover_url)" class="cover-image" />
           <video
-            v-if="playingId === video.id"
+            v-else-if="playingId === video.id"
             :src="getFullUrl(video.play_url)"
             controls
             autoplay
@@ -30,9 +31,9 @@
           <h3>{{ video.title }}</h3>
           <p v-if="video.description" class="description">{{ video.description }}</p>
           <p class="author">@{{ video.username }}</p>
-          <p v-if="video.publish_date" class="publish-date">
+          <p class="publish-date">
             <el-icon><Calendar /></el-icon>
-            {{ formatDate(video.publish_date) }}
+            {{ formatDate(video.created_at) }}
           </p>
           <div class="actions">
             <el-button
@@ -140,7 +141,11 @@ function getFullUrl(path: string) {
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
+
+  // 如果是 ISO 8601 格式（后端返回的时间）
   const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return ''
+
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
@@ -398,6 +403,12 @@ function clearSearch() {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .cover-placeholder {

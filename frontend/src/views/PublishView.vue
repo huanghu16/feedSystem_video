@@ -29,6 +29,33 @@
         />
       </div>
 
+      <!-- 封面上传区域 -->
+      <div class="upload-section">
+        <div class="form-label">
+          <el-icon><Picture /></el-icon>
+          视频封面（可选）
+        </div>
+        <div v-if="!coverPreviewUrl" class="upload-area cover-upload-area" @click="triggerCoverInput">
+          <el-icon :size="48" color="rgba(255,255,255,0.3)"><Upload /></el-icon>
+          <p class="upload-text">点击上传封面图片</p>
+          <p class="upload-hint">支持 JPG、PNG 格式，不上传则自动生成</p>
+        </div>
+        <div v-else class="preview-area cover-preview-area">
+          <img :src="coverPreviewUrl" alt="封面预览" class="cover-preview" />
+          <el-button type="danger" size="small" @click="removeCover">
+            <el-icon><Delete /></el-icon>
+            移除封面
+          </el-button>
+        </div>
+        <input
+          ref="coverFileInput"
+          type="file"
+          accept="image/*"
+          style="display: none"
+          @change="handleCoverChange"
+        />
+      </div>
+
       <!-- 表单字段 -->
       <div class="form-fields">
         <div class="form-item">
@@ -99,8 +126,8 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Upload, Delete, Document, EditPen, Calendar, Check, Refresh } from '@element-plus/icons-vue'
-import { uploadVideo, publishVideo } from '../api/video'
+import { Upload, Delete, Document, EditPen, Calendar, Check, Refresh, Picture } from '@element-plus/icons-vue'
+import { uploadVideo, publishVideo, uploadCover } from '../api/video'
 
 const router = useRouter()
 
@@ -116,6 +143,11 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref<string>('')
 const submitting = ref(false)
+
+// 封面相关
+const coverFileInput = ref<HTMLInputElement | null>(null)
+const selectedCoverFile = ref<File | null>(null)
+const coverPreviewUrl = ref<string>('')
 
 // 是否可以提交
 const canSubmit = computed(() => {
@@ -163,6 +195,47 @@ function removeVideo() {
   }
 }
 
+// 触发封面选择
+function triggerCoverInput() {
+  coverFileInput.value?.click()
+}
+
+// 处理封面选择
+function handleCoverChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (!file) return
+
+  // 验证文件类型
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('请选择图片文件')
+    return
+  }
+
+  // 验证文件大小（限制10MB）
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    ElMessage.error('封面图片大小不能超过10MB')
+    return
+  }
+
+  selectedCoverFile.value = file
+  coverPreviewUrl.value = URL.createObjectURL(file)
+}
+
+// 移除封面
+function removeCover() {
+  selectedCoverFile.value = null
+  if (coverPreviewUrl.value) {
+    URL.revokeObjectURL(coverPreviewUrl.value)
+    coverPreviewUrl.value = ''
+  }
+  if (coverFileInput.value) {
+    coverFileInput.value.value = ''
+  }
+}
+
 // 提交发布
 async function handleSubmit() {
   if (!canSubmit.value) {
@@ -177,9 +250,24 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
+    console.log('开始上传视频...')
     const uploadRes = await uploadVideo(selectedFile.value)
-    
-    await publishVideo(form.value.title, uploadRes.play_url, '', form.value.description, form.value.publishDate)
+    console.log('视频上传响应:', uploadRes)
+
+    // 使用后端自动生成的封面（如果有）
+    let coverUrl = uploadRes.cover_url || ''
+    console.log('封面URL:', coverUrl)
+
+    // 如果用户上传了自定义封面，上传自定义封面
+    if (selectedCoverFile.value) {
+      console.log('上传自定义封面...')
+      const coverRes = await uploadCover(selectedCoverFile.value)
+      coverUrl = coverRes.url
+      console.log('自定义封面URL:', coverUrl)
+    }
+
+    console.log('发布视频信息...')
+    await publishVideo(form.value.title, uploadRes.play_url, coverUrl, form.value.description, form.value.publishDate)
     
     ElMessage.success('发布成功！')
     
@@ -204,6 +292,7 @@ function handleReset() {
     publishDate: new Date().toISOString().split('T')[0],
   }
   removeVideo()
+  removeCover()
 }
 </script>
 
@@ -288,6 +377,21 @@ function handleReset() {
   position: absolute;
   top: 12px;
   right: 12px;
+}
+
+.cover-upload-area {
+  padding: 40px 20px;
+}
+
+.cover-preview-area {
+  max-height: 300px;
+}
+
+.cover-preview {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  display: block;
 }
 
 .form-fields {

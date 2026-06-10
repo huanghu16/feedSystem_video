@@ -59,6 +59,7 @@ func (s *Service) ListLatest() ([]FeedVideoItem, error) {
 			LikesCount:    v.LikesCount,    // 点赞数
 			PlayCount:     v.PlayCount,     // 播放量
 			CommentsCount: v.CommentsCount, // 评论数
+			CreatedAt:     v.CreatedAt,     // 创建时间
 		}
 	}
 

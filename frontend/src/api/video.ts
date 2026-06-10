@@ -4,12 +4,23 @@ import type { VideoItem } from './types'
 /**
  * 上传视频
  * @param file
- * @return play_url 视频播放地址
+ * @return play_url 视频播放地址, cover_url 自动生成的封面地址
  */
 export function uploadVideo(file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  return postForm<{ play_url: string }>('/video/uploadVideo', formData)
+  return postForm<{ play_url: string; cover_url?: string }>('/video/uploadVideo', formData)
+}
+
+/**
+ * 上传封面图片
+ * @param file 封面图片文件
+ * @return url 封面地址
+ */
+export function uploadCover(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return postForm<{ url: string }>('/video/uploadCover', formData)
 }
 
 /** 
