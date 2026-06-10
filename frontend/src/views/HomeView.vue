@@ -28,7 +28,12 @@
         </div>
         <div class="video-info">
           <h3>{{ video.title }}</h3>
+          <p v-if="video.description" class="description">{{ video.description }}</p>
           <p class="author">@{{ video.username }}</p>
+          <p v-if="video.publish_date" class="publish-date">
+            <el-icon><Calendar /></el-icon>
+            {{ formatDate(video.publish_date) }}
+          </p>
           <div class="actions">
             <el-button
               :type="video.isLiked ? 'danger' : 'default'"
@@ -69,19 +74,6 @@
       <span>加载中...</span>
     </div>
 
-    <!-- 分页组件 -->
-    <div v-if="total > 0" class="pagination">
-      <el-pagination
-        v-model:current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        layout="prev, pager, next, jumper, total"
-        prev-text="上一页"
-        next-text="下一页"
-        @current-change="handlePageChange"
-      />
-    </div>
-
     <!-- 评论抽屉 -->
     <el-drawer v-model="commentDrawer" title="评论" size="400px" :with-header="false" class="comment-drawer-wrapper">
       <div class="comment-drawer-content">
@@ -114,7 +106,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, Star, ChatDotRound, Loading, UserFilled } from '@element-plus/icons-vue'
+import { VideoPlay, Star, ChatDotRound, Loading, UserFilled, Calendar } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { listLatest } from '../api/feed'
 import { like, unlike, isLiked } from '../api/like'
@@ -135,7 +127,6 @@ const comments = ref<CommentItem[]>([])
 const currentVideoId = ref(0)
 const newComment = ref('')
 
-// 分页相关
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -145,6 +136,24 @@ const searchKeyword = ref('')
 function getFullUrl(path: string) {
   if (path.startsWith('http')) return path
   return `http://localhost:8080${path}`
+}
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+
+  return date.toLocaleDateString('zh-CN')
 }
 
 onMounted(async () => {
@@ -412,7 +421,31 @@ function clearSearch() {
 .video-info p {
   color: rgba(255, 255, 255, 0.5);
   font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.description {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.publish-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
   margin-bottom: 12px;
+}
+
+.publish-date .el-icon {
+  font-size: 14px;
 }
 
 .actions {
@@ -464,75 +497,6 @@ function clearSearch() {
   gap: 12px;
   padding: 32px 0;
   color: rgba(255, 255, 255, 0.6);
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 24px;
-  padding: 16px 0;
-}
-
-.pagination :deep(.el-pagination) {
-  --el-pagination-bg-color: rgba(255, 255, 255, 0.05);
-  --el-pagination-text-color: rgba(255, 255, 255, 0.8);
-  --el-pagination-border-color: rgba(255, 255, 255, 0.1);
-  --el-pagination-hover-color: #e94560;
-}
-
-.pagination :deep(.el-pager li) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  min-width: 32px;
-  height: 32px;
-  line-height: 32px;
-  border-radius: 6px;
-  margin: 0 4px;
-}
-
-.pagination :deep(.el-pager li.is-active) {
-  background: linear-gradient(135deg, #e94560, #ff6b8a);
-  border-color: #e94560;
-  color: #fff;
-}
-
-.pagination :deep(.el-pager li:hover) {
-  color: #e94560;
-}
-
-.pagination :deep(.btn-prev),
-.pagination :deep(.btn-next) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
-  padding: 0 12px;
-}
-
-.pagination :deep(.btn-prev:hover),
-.pagination :deep(.btn-next:hover) {
-  background: rgba(233, 69, 96, 0.2);
-  border-color: #e94560;
-  color: #e94560;
-}
-
-.pagination :deep(.el-pagination__jump) {
-  color: rgba(255, 255, 255, 0.6);
-  margin-left: 16px;
-}
-
-.pagination :deep(.el-pagination__total) {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.pagination :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.pagination :deep(.el-input__inner) {
-  color: #fff;
 }
 
 .comment-drawer-content {

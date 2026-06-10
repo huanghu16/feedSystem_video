@@ -42,6 +42,14 @@ export async function postJson<T = any>(path: string, body?: any): Promise<T> {
         body: body ? JSON.stringify(body) : undefined,
     })
 
+    // 检查响应类型是否为 JSON
+    const contentType = res.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text()
+        console.error('非JSON响应:', text)
+        throw new ApiError(res.status, { message: '服务器响应格式错误' })
+    }
+
     const json: ApiResponse<T> = await res.json()
 
     if (res.status === 401 && path !== '/account/refresh') {

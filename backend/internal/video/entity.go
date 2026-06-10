@@ -12,14 +12,16 @@ type Video struct {
 	AuthorID      uint           `gorm:"index;not null" json:"author_id"`
 	Username      string         `gorm:"type:varchar(64);not null" json:"username"`
 	Title         string         `gorm:"type:varchar(256);not null" json:"title"`
+	Description   string         `gorm:"type:text;default:''" json:"description"`
+	PublishDate   string         `gorm:"type:varchar(20);default:''" json:"publish_date"`
 	PlayURL       string         `gorm:"type:varchar(512);not null" json:"play_url"`
 	CoverURL      string         `gorm:"type:varchar(512);default:''" json:"cover_url"`
 	LikesCount    int            `gorm:"default:0" json:"likes_count"`
 	PlayCount     int            `gorm:"default:0" json:"play_count"`
-	CommentsCount int            `gorm:"default:0" json:"comments_count"`  // 评论数 (新增)
-	HotScore      float64        `gorm:"-:all" json:"hot_score,omitempty"` // 热度分数（新增）（不存储在数据库，仅用于热榜查询）
+	CommentsCount int            `gorm:"default:0" json:"comments_count"`
+	HotScore      float64        `gorm:"-:all" json:"hot_score,omitempty"`
 	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"` // 更新时间 (新增)
+	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
@@ -31,9 +33,11 @@ func (Video) TableName() string {
 
 // PublishRequest 发布视频请求
 type PublishRequest struct {
-	Title    string `json:"title" binding:"required,max=256"`
-	PlayURL  string `json:"play_url" binding:"required"`
-	CoverURL string `json:"cover_url"`
+	Title       string `json:"title" binding:"required,max=256"`
+	Description string `json:"description"`
+	PublishDate string `json:"publish_date"`
+	PlayURL     string `json:"play_url" binding:"required"`
+	CoverURL    string `json:"cover_url"`
 }
 
 // ListByAuthorRequest 按作者查询请求
@@ -47,11 +51,13 @@ type VideoItem struct {
 	AuthorID      uint      `json:"author_id"`
 	Username      string    `json:"username"`
 	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	PublishDate   string    `json:"publish_date"`
 	PlayURL       string    `json:"play_url"`
 	CoverURL      string    `json:"cover_url"`
 	LikesCount    int       `json:"likes_count"`
 	PlayCount     int       `json:"play_count"`
-	CommentsCount int       `json:"comments_count"` // 新增
+	CommentsCount int       `json:"comments_count"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 

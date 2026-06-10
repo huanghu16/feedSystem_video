@@ -31,7 +31,6 @@ var (
 
 // Publish 发布视频
 func (s *Service) Publish(req *PublishRequest, authorID uint) (*Video, error) {
-	// 查作者信息（获取 username）
 	author, err := s.accountRepo.FindByID(authorID)
 	if err != nil {
 		return nil, err
@@ -41,19 +40,19 @@ func (s *Service) Publish(req *PublishRequest, authorID uint) (*Video, error) {
 	}
 
 	video := &Video{
-		AuthorID: authorID,
-		Username: author.Username,
-		Title:    req.Title,
-		PlayURL:  req.PlayURL,  // 播放地址
-		CoverURL: req.CoverURL, // 封面地址
+		AuthorID:    authorID,
+		Username:    author.Username,
+		Title:       req.Title,
+		Description: req.Description,
+		PublishDate: req.PublishDate,
+		PlayURL:     req.PlayURL,
+		CoverURL:    req.CoverURL,
 	}
 
-	// 保存视频
 	if err := s.repo.Create(video); err != nil {
 		return nil, fmt.Errorf("创建视频失败: %w", err)
 	}
 
-	// 清除 Feed 缓存，让下次查询时重新从数据库加载
 	_ = redis.Del(context.Background(), "v1:feed:latest:all")
 
 	return video, nil
@@ -70,15 +69,17 @@ func (s *Service) ListByAuthor(authorID uint) ([]VideoItem, error) {
 	for i, v := range videos {
 		items[i] = VideoItem{
 			ID:            v.ID,
-			AuthorID:      v.AuthorID, // 作者ID
+			AuthorID:      v.AuthorID,
 			Username:      v.Username,
 			Title:         v.Title,
-			PlayURL:       v.PlayURL,       // 播放地址
-			CoverURL:      v.CoverURL,      // 封面地址
-			LikesCount:    v.LikesCount,    // 点赞数
-			PlayCount:     v.PlayCount,     // 播放数
-			CommentsCount: v.CommentsCount, // 评论数
-			CreatedAt:     v.CreatedAt,     // 创建时间
+			Description:   v.Description,
+			PublishDate:   v.PublishDate,
+			PlayURL:       v.PlayURL,
+			CoverURL:      v.CoverURL,
+			LikesCount:    v.LikesCount,
+			PlayCount:     v.PlayCount,
+			CommentsCount: v.CommentsCount,
+			CreatedAt:     v.CreatedAt,
 		}
 	}
 	return items, nil
@@ -207,6 +208,8 @@ func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
 			AuthorID:      v.AuthorID,
 			Username:      v.Username,
 			Title:         v.Title,
+			Description:   v.Description,
+			PublishDate:   v.PublishDate,
 			PlayURL:       v.PlayURL,
 			CoverURL:      v.CoverURL,
 			LikesCount:    v.LikesCount,
@@ -225,7 +228,7 @@ func (s *Service) SearchVideos(keyword string, page, size int) (*SearchVideosRes
 		return nil, errors.New("搜索关键词不能为空")
 	}
 
-	videos, total, err := s.repo.SearchVideos(keyword, page, size) // 调用 repo, 返回视频列表和总数
+	videos, total, err := s.repo.SearchVideos(keyword, page, size)
 	if err != nil {
 		log.Printf("[SearchVideos] 搜索失败: %v", err)
 		return nil, err
@@ -238,6 +241,8 @@ func (s *Service) SearchVideos(keyword string, page, size int) (*SearchVideosRes
 			AuthorID:      v.AuthorID,
 			Username:      v.Username,
 			Title:         v.Title,
+			Description:   v.Description,
+			PublishDate:   v.PublishDate,
 			PlayURL:       v.PlayURL,
 			CoverURL:      v.CoverURL,
 			LikesCount:    v.LikesCount,
@@ -256,4 +261,41 @@ func (s *Service) SearchVideos(keyword string, page, size int) (*SearchVideosRes
 		Size:    size,
 		HasMore: hasMore,
 	}, nil
+}
+
+// DeleteVideo 删除视频
+func (s *Service) DeleteVideo(videoID uint, authorID uint) error {
+	video, err := s.repo.GetByID(videoID)
+	if err != nil {
+		return err
+	}
+	if video == nil {
+		return ErrVideoNotFound
+	}
+	if video.AuthorID != authorID {
+		return errors.New("无权限删除此视频")
+	}
+
+	if err := s.repo.DeleteVideo(videoID, authorID); err != nil {
+		return fmt.Errorf("删除视频失败: %w", err)
+	}
+
+	_ = redis.Del(context.Background(), "v1:feed:latest:all")
+
+	return nil
+}
+
+// DeleteVideosBatch 批量删除视频
+func (s *Service) DeleteVideosBatch(videoIDs []uint, authorID uint) error {
+	if len(videoIDs) == 0 {
+		return errors.New("请选择要删除的视频")
+	}
+
+	if err := s.repo.DeleteVideosBatch(videoIDs, authorID); err != nil {
+		return fmt.Errorf("批量删除视频失败: %w", err)
+	}
+
+	_ = redis.Del(context.Background(), "v1:feed:latest:all")
+
+	return nil
 }

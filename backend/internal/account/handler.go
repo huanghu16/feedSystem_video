@@ -3,6 +3,13 @@ package account
 import (
 	"errors"
 	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/middleware/jwt"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -80,4 +87,119 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	}
 
 	apierror.OK(c, profile)
+}
+
+// UploadAvatar 处理 POST /account/uploadAvatar
+func (h *Handler) UploadAvatar(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		apierror.FailParam(c, "请上传文件")
+		return
+	}
+	defer file.Close()
+
+	// 检查文件类型
+	ext := filepath.Ext(header.Filename)
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowedExts[strings.ToLower(ext)] {
+		apierror.FailParam(c, "只支持 JPG、PNG、GIF、WebP 格式的图片")
+		return
+	}
+
+	// 检查文件大小（限制10MB）
+	const maxSize = 10 * 1024 * 1024 // 10MB
+	if header.Size > maxSize {
+		apierror.FailParam(c, "图片大小不能超过10MB")
+		return
+	}
+
+	// 生成唯一文件名
+	filename := fmt.Sprintf("%d_%s%s", time.Now().Unix(), "avatar", ext)
+	savePath := filepath.Join("uploads", filename)
+
+	// 确保 uploads 目录存在
+	os.MkdirAll("uploads", os.ModePerm)
+
+	// 创建目标文件
+	out, err := os.Create(savePath)
+	if err != nil {
+		apierror.FailServer(c, "保存文件失败")
+		return
+	}
+	defer out.Close()
+
+	// 复制文件内容
+	if _, err := io.Copy(out, file); err != nil {
+		apierror.FailServer(c, "写入文件失败")
+		return
+	}
+
+	// 获取当前用户ID
+	accountID, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.FailServer(c, "未登录")
+		return
+	}
+	userID := accountID.(uint)
+
+	// 更新数据库中的头像URL
+	avatarURL := fmt.Sprintf("/static/%s", filename)
+	if err := h.service.UpdateAvatar(userID, avatarURL); err != nil {
+		apierror.FailServer(c, err.Error())
+		return
+	}
+
+	apierror.OK(c, gin.H{"avatar_url": avatarURL})
+}
+
+// ChangePassword 处理 POST /account/changePassword
+func (h *Handler) ChangePassword(c *gin.Context) {
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	// 获取当前用户ID
+	accountID, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.FailServer(c, "未登录")
+		return
+	}
+	userID := accountID.(uint)
+
+	if err := h.service.ChangePassword(userID, req.OldPassword, req.NewPassword); err != nil {
+		if err.Error() == "原密码错误" {
+			apierror.FailParam(c, "原密码错误")
+			return
+		}
+		apierror.FailServer(c, "修改密码失败")
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "密码修改成功"})
+}
+
+// UpdateBio 处理 POST /account/updateBio
+func (h *Handler) UpdateBio(c *gin.Context) {
+	var req UpdateBioRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	// 获取当前用户ID
+	accountID, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.FailServer(c, "未登录")
+		return
+	}
+	userID := accountID.(uint)
+
+	if err := h.service.UpdateBio(userID, req.Bio); err != nil {
+		apierror.FailServer(c, err.Error())
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "简介更新成功"})
 }

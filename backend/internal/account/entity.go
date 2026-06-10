@@ -77,3 +77,19 @@ type ProfileResponse struct {
 type GetProfileRequest struct {
 	UserID uint `json:"user_id" binding:"required"`
 }
+
+// UpdateAvatarRequest 更新头像请求
+type UpdateAvatarRequest struct {
+	AvatarURL string `json:"avatar_url" binding:"required"`
+}
+
+// ChangePasswordRequest 修改密码请求
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password" binding:"required,min=6,max=64"`
+	NewPassword string `json:"new_password" binding:"required,min=6,max=64"`
+}
+
+// UpdateBioRequest 更新简介请求
+type UpdateBioRequest struct {
+	Bio string `json:"bio" binding:"max=256"`
+}

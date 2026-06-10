@@ -40,6 +40,18 @@ func (r *Repo) GetByID(id uint) (*Video, error) {
 	return &video, nil
 }
 
+// DeleteVideo 删除视频
+func (r *Repo) DeleteVideo(videoID uint, authorID uint) error {
+	return db.DB.Where("id = ? AND author_id = ?", videoID, authorID).
+		Delete(&Video{}).Error
+}
+
+// DeleteVideosBatch 批量删除视频
+func (r *Repo) DeleteVideosBatch(videoIDs []uint, authorID uint) error {
+	return db.DB.Where("id IN ? AND author_id = ?", videoIDs, authorID).
+		Delete(&Video{}).Error
+}
+
 // ==================== 点赞 ====================
 
 // CreateLike 创建点赞记录
@@ -131,8 +143,8 @@ func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
 	err := db.DB.Select(`*, 
 		COALESCE(play_count, 0) * 1.0 / 
 		POWER(
-			TIMESTAMPDIFF(HOUR, created_at, NOW()) + 24, 
-			1.2
+			TIMESTAMPDIFF(HOUR, created_at, NOW()) + 100, 
+			1.1
 		) as hot_score`).
 		Order("hot_score DESC").
 		Limit(limit).

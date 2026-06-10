@@ -24,6 +24,7 @@
         <div class="rank">{{ index + 1 }}</div>
         <div class="video-info">
           <h3 class="title">{{ video.title }}</h3>
+          <p v-if="video.description" class="description">{{ video.description }}</p>
           <div class="meta">
             <span class="author">@{{ video.username }}</span>
             <span class="stats">
@@ -33,7 +34,13 @@
               {{ formatNumber(video.likes_count) }}
             </span>
           </div>
-          <div class="time">{{ formatDate(video.created_at) }}</div>
+          <div class="time-row">
+            <span class="time">{{ formatDate(video.created_at) }}</span>
+            <span v-if="video.publish_date" class="publish-date">
+              <el-icon><Calendar /></el-icon>
+              发布于 {{ formatPublishDate(video.publish_date) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -44,7 +51,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading, VideoCamera, VideoPlay, Star } from '@element-plus/icons-vue'
+import { Loading, VideoCamera, VideoPlay, Star, Calendar } from '@element-plus/icons-vue'
 import { listHotVideos } from '../api/video'
 import type { VideoItem } from '../api/types'
 
@@ -52,7 +59,6 @@ const router = useRouter()
 const loading = ref(false)
 const hotVideos = ref<VideoItem[]>([])
 
-// 格式化数字
 function formatNumber(num: number): string {
   if (num >= 10000) {
     return (num / 10000).toFixed(1) + '万'
@@ -60,7 +66,6 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
-// 格式化日期
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
@@ -78,12 +83,16 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('zh-CN')
 }
 
-// 跳转到视频详情页
+function formatPublishDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('zh-CN')
+}
+
 function goToVideo(videoId: number) {
   router.push(`/video/${videoId}`)
 }
 
-// 加载热榜数据
 async function loadHotVideos() {
   loading.value = true
   try {
@@ -236,8 +245,38 @@ onMounted(() => {
   font-size: 14px;
 }
 
+.description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin: 8px 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
 .time {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
+}
+
+.publish-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.publish-date .el-icon {
+  font-size: 13px;
 }
 </style>

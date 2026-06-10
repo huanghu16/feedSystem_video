@@ -119,3 +119,18 @@ func (r *Repo) GetProfileWithStats(userID uint) (*ProfileResponse, error) {
 		LikesCount:     likesCount,
 	}, nil
 }
+
+// UpdateAvatar 更新用户头像
+func (r *Repo) UpdateAvatar(userID uint, avatarURL string) error {
+	return db.DB.Model(&Account{}).Where("id = ?", userID).Update("avatar_url", avatarURL).Error
+}
+
+// UpdatePassword 更新用户密码
+func (r *Repo) UpdatePassword(userID uint, hashedPassword string) error {
+	return db.DB.Model(&Account{}).Where("id = ?", userID).Update("password", hashedPassword).Error
+}
+
+// UpdateBio 更新用户简介
+func (r *Repo) UpdateBio(userID uint, bio string) error {
+	return db.DB.Model(&Account{}).Where("id = ?", userID).Update("bio", bio).Error
+}

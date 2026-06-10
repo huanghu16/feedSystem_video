@@ -3,7 +3,10 @@
     <!-- 用户信息卡片 -->
     <div class="profile-header">
       <div class="avatar-section">
-        <div class="avatar-large">
+        <div v-if="profile?.avatar_url" class="avatar-large">
+          <img :src="getFullAvatarUrl(profile.avatar_url)" alt="头像" />
+        </div>
+        <div v-else class="avatar-large placeholder">
           {{ profile?.username?.[0]?.toUpperCase() || 'U' }}
         </div>
       </div>
@@ -35,7 +38,30 @@
 
     <!-- 作品列表 -->
     <div class="works-section">
-      <h2 class="section-title">作品</h2>
+      <div class="section-header">
+        <h2 class="section-title">作品</h2>
+        <div class="section-actions">
+          <el-button
+            v-if="videos.length > 0"
+            :class="batchMode ? 'glass-btn active' : 'glass-btn'"
+            size="small"
+            @click="toggleBatchMode"
+          >
+            <el-icon><Delete /></el-icon>
+            {{ batchMode ? '取消批量' : '批量管理' }}
+          </el-button>
+          <el-button
+            v-if="batchMode && selectedVideos.size > 0"
+            :class="'glass-btn delete-selected-btn'"
+            size="small"
+            :loading="deleting"
+            @click="handleBatchDelete"
+          >
+            <el-icon><Delete /></el-icon>
+            删除选中({{ selectedVideos.size }})
+          </el-button>
+        </div>
+      </div>
 
       <div v-if="loading" class="loading">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
@@ -51,8 +77,13 @@
           v-for="video in videos"
           :key="video.id"
           class="work-card"
-          @click="playVideo(video)"
+          :class="{ selected: selectedVideos.has(video.id) }"
+          @click="handleCardClick(video)"
         >
+          <div v-if="batchMode" class="select-checkbox" @click.stop="toggleSelect(video.id)">
+            <el-icon v-if="selectedVideos.has(video.id)" class="checked"><CircleCheckFilled /></el-icon>
+            <div v-else class="checkbox-unchecked"></div>
+          </div>
           <div class="work-cover">
             <video
               v-if="playingId === video.id"
@@ -72,6 +103,17 @@
               <span><el-icon><Star /></el-icon> {{ video.likes_count }}</span>
               <span><el-icon><ChatDotRound /></el-icon> {{ video.comments_count }}</span>
             </div>
+          </div>
+          <div v-if="!batchMode" class="video-actions-overlay">
+            <el-button
+              type="danger"
+              size="small"
+              circle
+              class="delete-btn"
+              @click.stop="handleDeleteVideo(video)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
           </div>
         </div>
       </div>
@@ -95,11 +137,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { VideoPlay, Star, ChatDotRound, Loading } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { VideoPlay, Star, ChatDotRound, Loading, Delete, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { getProfile, type ProfileInfo } from '../api/account'
-import { listByAuthor } from '../api/video'
+import { listByAuthor, deleteVideo, deleteVideosBatch } from '../api/video'
 import type { VideoItem } from '../api/types'
 
 const router = useRouter()
@@ -109,6 +151,11 @@ const profile = ref<ProfileInfo | null>(null)
 const videos = ref<VideoItem[]>([])
 const playingId = ref<number | null>(null)
 const loading = ref(false)
+const deleting = ref(false)
+
+// 批量选择相关
+const batchMode = ref(false)
+const selectedVideos = ref<Set<number>>(new Set())
 
 // 分页相关
 const currentPage = ref(1)
@@ -116,6 +163,12 @@ const pageSize = ref(12) // 每页12个（4列 x 3行）
 const total = ref(0)
 
 function getFullUrl(path: string) {
+  if (path.startsWith('http')) return path
+  return `http://localhost:8080${path}`
+}
+
+function getFullAvatarUrl(path: string) {
+  if (!path) return ''
   if (path.startsWith('http')) return path
   return `http://localhost:8080${path}`
 }
@@ -140,6 +193,9 @@ async function loadProfile() {
     }
     const data = await getProfile(userId)
     profile.value = data
+    if (data.avatar_url) {
+      auth.setAvatar(data.avatar_url)
+    }
   } catch (error: any) {
     console.error('加载用户资料失败:', error)
     ElMessage.error(error?.payload?.message || '加载用户资料失败')
@@ -184,6 +240,103 @@ async function handlePageChange(page: number) {
   currentPage.value = page
   await loadVideos()
 }
+
+// 切换批量模式
+function toggleBatchMode() {
+  batchMode.value = !batchMode.value
+  if (!batchMode.value) {
+    selectedVideos.value.clear()
+  }
+}
+
+// 切换单个视频选择
+function toggleSelect(videoId: number) {
+  if (selectedVideos.value.has(videoId)) {
+    selectedVideos.value.delete(videoId)
+  } else {
+    selectedVideos.value.add(videoId)
+  }
+}
+
+// 卡片点击处理
+function handleCardClick(video: VideoItem) {
+  if (batchMode.value) {
+    toggleSelect(video.id)
+  } else {
+    playVideo(video)
+  }
+}
+
+// 删除单个视频
+async function handleDeleteVideo(video: VideoItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除视频"${video.title}"吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    deleting.value = true
+    await deleteVideo(video.id)
+
+    // 从列表中移除
+    videos.value = videos.value.filter(v => v.id !== video.id)
+    total.value = videos.value.length
+
+    ElMessage.success('删除成功')
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error(error?.payload?.message || '删除失败')
+    }
+  } finally {
+    deleting.value = false
+  }
+}
+
+// 批量删除
+async function handleBatchDelete() {
+  if (selectedVideos.value.size === 0) {
+    ElMessage.warning('请选择要删除的视频')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedVideos.value.size} 个视频吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    deleting.value = true
+    await deleteVideosBatch(Array.from(selectedVideos.value))
+
+    // 从列表中移除
+    videos.value = videos.value.filter(v => !selectedVideos.value.has(v.id))
+    total.value = videos.value.length
+
+    // 清空选择
+    selectedVideos.value.clear()
+    batchMode.value = false
+
+    ElMessage.success(`成功删除 ${selectedVideos.value.size} 个视频`)
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error(error?.payload?.message || '批量删除失败')
+    }
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -220,6 +373,17 @@ async function handlePageChange(page: number) {
   font-weight: bold;
   color: #fff;
   box-shadow: 0 8px 24px rgba(233, 69, 96, 0.3);
+  overflow: hidden;
+}
+
+.avatar-large.placeholder {
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+}
+
+.avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-details {
@@ -269,12 +433,53 @@ async function handlePageChange(page: number) {
   padding: 24px;
 }
 
-.section-title {
-  color: #fff;
-  font-size: 20px;
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+  color: #fff;
+  font-size: 20px;
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.glass-btn:hover {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: #e94560;
+  backdrop-filter: blur(15px);
+}
+
+.glass-btn.active {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: #e94560;
+  backdrop-filter: blur(15px);
+}
+
+.delete-selected-btn:hover {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: #e94560;
+  backdrop-filter: blur(15px);
 }
 
 .loading {
@@ -316,6 +521,7 @@ async function handlePageChange(page: number) {
 }
 
 .work-card {
+  position: relative;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -327,6 +533,38 @@ async function handlePageChange(page: number) {
 .work-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.work-card.selected {
+  border-color: #e94560;
+  box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3);
+}
+
+.select-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.select-checkbox .checked {
+  font-size: 28px;
+  color: #e94560;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.checkbox-unchecked {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.6);
 }
 
 .work-cover {
@@ -378,6 +616,29 @@ async function handlePageChange(page: number) {
 
 .work-stats .el-icon {
   font-size: 14px;
+}
+
+.video-actions-overlay {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.work-card:hover .video-actions-overlay {
+  opacity: 1;
+}
+
+.delete-btn {
+  background: rgba(233, 69, 96, 0.9);
+  border-color: #e94560;
+  backdrop-filter: blur(8px);
+}
+
+.delete-btn:hover {
+  background: #e94560;
+  transform: scale(1.1);
 }
 
 /* ===== 分页 ===== */

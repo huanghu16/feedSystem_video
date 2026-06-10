@@ -6,6 +6,8 @@ type FeedVideoItem struct {
 	AuthorID      uint   `json:"author_id"`      // 作者 ID
 	Username      string `json:"username"`       // 作者用户名
 	Title         string `json:"title"`          // 标题
+	Description   string `json:"description"`    // 描述
+	PublishDate   string `json:"publish_date"`   // 发布时间
 	PlayURL       string `json:"play_url"`       // 播放地址
 	CoverURL      string `json:"cover_url"`      // 封面地址
 	LikesCount    int    `json:"likes_count"`    // 点赞数

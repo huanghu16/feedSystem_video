@@ -19,28 +19,31 @@ export interface Account {
 // 视频信息
 export interface VideoItem {
     id: number
-    author_id: number  // 作者id
+    author_id: number
     username: string
     title: string
-    play_url: string   // 播放地址
-    cover_url: string  // 封面
-    likes_count: number  // 点赞数
-    play_count: number  // 播放量
-    comments_count: number  // 评论数
-    created_at: string  // 创建时间
+    description: string
+    publish_date: string
+    play_url: string
+    cover_url: string
+    likes_count: number
+    play_count: number
+    comments_count: number
+    created_at: string
 }
 
-// 订阅视频信息
 export interface FeedVideoItem {
     id: number
     author_id: number
     username: string
     title: string
+    description: string
+    publish_date: string
     play_url: string
     cover_url: string
     likes_count: number
-    play_count: number  // 播放量
-    comments_count: number  // 评论数
+    play_count: number
+    comments_count: number
 }
 
 // 评论信息

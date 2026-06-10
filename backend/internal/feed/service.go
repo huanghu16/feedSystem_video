@@ -52,6 +52,8 @@ func (s *Service) ListLatest() ([]FeedVideoItem, error) {
 			AuthorID:      v.AuthorID,      // 作者 ID
 			Username:      v.Username,      // 作者名
 			Title:         v.Title,         // 标题
+			Description:   v.Description,   // 描述
+			PublishDate:   v.PublishDate,   // 发布日期
 			PlayURL:       v.PlayURL,       // 播放地址
 			CoverURL:      v.CoverURL,      // 封面
 			LikesCount:    v.LikesCount,    // 点赞数

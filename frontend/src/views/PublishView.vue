@@ -1,4 +1,4 @@
-<template>
+<<template>
   <div class="publish-page">
     <div class="header-info">
       <h2>📤 发布视频</h2>
@@ -177,18 +177,14 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
-    // 1. 上传视频文件
     const uploadRes = await uploadVideo(selectedFile.value)
     
-    // 2. 发布视频（包含标题和描述）
-    await publishVideo(form.value.title, uploadRes.play_url, '')
+    await publishVideo(form.value.title, uploadRes.play_url, '', form.value.description, form.value.publishDate)
     
     ElMessage.success('发布成功！')
     
-    // 重置表单
     handleReset()
     
-    // 跳转到首页
     setTimeout(() => {
       router.push('/')
     }, 1000)

@@ -303,3 +303,54 @@ func (h *Handler) SearchVideos(c *gin.Context) {
 
 	apierror.OK(c, resp)
 }
+
+// DeleteVideo 处理 POST /video/delete（需要 JWT）
+func (h *Handler) DeleteVideo(c *gin.Context) {
+	var req struct {
+		VideoID uint `json:"video_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	accountID, _ := c.Get(jwt.AccountIDKey)
+	accountIDUint := accountID.(uint)
+
+	if err := h.service.DeleteVideo(req.VideoID, accountIDUint); err != nil {
+		if err == ErrVideoNotFound {
+			apierror.FailParam(c, "视频不存在")
+			return
+		}
+		apierror.FailServer(c, err.Error())
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": "删除成功"})
+}
+
+// DeleteVideosBatch 处理 POST /video/deleteBatch（需要 JWT）
+func (h *Handler) DeleteVideosBatch(c *gin.Context) {
+	var req struct {
+		VideoIDs []uint `json:"video_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apierror.FailParam(c, err.Error())
+		return
+	}
+
+	if len(req.VideoIDs) == 0 {
+		apierror.FailParam(c, "请选择要删除的视频")
+		return
+	}
+
+	accountID, _ := c.Get(jwt.AccountIDKey)
+	accountIDUint := accountID.(uint)
+
+	if err := h.service.DeleteVideosBatch(req.VideoIDs, accountIDUint); err != nil {
+		apierror.FailServer(c, err.Error())
+		return
+	}
+
+	apierror.OK(c, gin.H{"message": fmt.Sprintf("成功删除 %d 个视频", len(req.VideoIDs))})
+}

@@ -94,3 +94,44 @@ func (s *Service) GetProfile(userID uint) (*ProfileResponse, error) {
 	}
 	return profile, nil
 }
+
+// UpdateAvatar 更新用户头像
+func (s *Service) UpdateAvatar(userID uint, avatarURL string) error {
+	if avatarURL == "" {
+		return errors.New("头像URL不能为空")
+	}
+	return s.repo.UpdateAvatar(userID, avatarURL)
+}
+
+// ChangePassword 修改用户密码
+func (s *Service) ChangePassword(userID uint, oldPassword, newPassword string) error {
+	// 验证旧密码
+	account, err := s.repo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	if account == nil {
+		return ErrUserNotFound
+	}
+
+	if !CheckPassword(account.Password, oldPassword) {
+		return errors.New("原密码错误")
+	}
+
+	// 哈希新密码
+	hashed, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	// 更新密码
+	return s.repo.UpdatePassword(userID, hashed)
+}
+
+// UpdateBio 更新用户简介
+func (s *Service) UpdateBio(userID uint, bio string) error {
+	if len(bio) > 256 {
+		return errors.New("简介不能超过256个字符")
+	}
+	return s.repo.UpdateBio(userID, bio)
+}

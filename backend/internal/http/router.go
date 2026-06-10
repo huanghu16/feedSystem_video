@@ -36,6 +36,12 @@ func SetupRouter() *gin.Engine {
 		accountGroup.POST("/register", handler.Register)
 		accountGroup.POST("/login", handler.Login)
 		accountGroup.POST("/getProfile", handler.GetProfile)
+
+		// 需要JWT认证的接口
+		accountAuthGroup := accountGroup.Use(jwt.JWTAuth())
+		accountAuthGroup.POST("/uploadAvatar", handler.UploadAvatar)
+		accountAuthGroup.POST("/changePassword", handler.ChangePassword)
+		accountAuthGroup.POST("/updateBio", handler.UpdateBio)
 	}
 
 	// --- Video 模块 ---
@@ -49,6 +55,8 @@ func SetupRouter() *gin.Engine {
 		videoGroup.Use(jwt.JWTAuth())
 		videoGroup.POST("/publish", videoHandler.Publish)
 		videoGroup.POST("/uploadVideo", videoHandler.UploadVideo)
+		videoGroup.POST("/delete", videoHandler.DeleteVideo)
+		videoGroup.POST("/deleteBatch", videoHandler.DeleteVideosBatch)
 	}
 
 	// 不需要 JWT 的接口（放在外面）

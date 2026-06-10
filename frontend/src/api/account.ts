@@ -38,3 +38,23 @@ export interface ProfileInfo {
 export function getProfile(userId: number) {
     return postJson<ProfileInfo>('/account/getProfile', { user_id: userId })
 }
+
+// 更新头像
+export function updateAvatar(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return postForm<{ avatar_url: string }>('/account/uploadAvatar', formData)
+}
+
+// 修改密码
+export function changePassword(oldPassword: string, newPassword: string) {
+    return postJson<{ message: string }>('/account/changePassword', { 
+        old_password: oldPassword, 
+        new_password: newPassword 
+    })
+}
+
+// 更新简介
+export function updateBio(bio: string) {
+    return postJson<{ message: string }>('/account/updateBio', { bio })
+}

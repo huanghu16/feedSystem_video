@@ -19,8 +19,14 @@ export function uploadVideo(file: File) {
  * @param coverUrl 视频封面地址
  * @return VideoItem 发布成功后返回的视频信息 
 */
-export function publishVideo(title: string, playUrl: string, coverUrl: string) {
-  return postJson<VideoItem>('/video/publish', { title, play_url: playUrl, cover_url: coverUrl })
+export function publishVideo(title: string, playUrl: string, coverUrl: string, description?: string, publishDate?: string) {
+  return postJson<VideoItem>('/video/publish', { 
+    title, 
+    play_url: playUrl, 
+    cover_url: coverUrl,
+    description: description || '',
+    publish_date: publishDate || ''
+  })
 }
 
 /**
@@ -68,4 +74,20 @@ export function searchVideos(keyword: string, page: number = 1, size: number = 1
     page, 
     size 
   })
+}
+
+/**
+ * 删除视频
+ * @param videoId 视频id
+ */
+export function deleteVideo(videoId: number) {
+  return postJson<void>('/video/delete', { video_id: videoId })
+}
+
+/**
+ * 批量删除视频
+ * @param videoIds 视频id列表
+ */
+export function deleteVideosBatch(videoIds: number[]) {
+  return postJson<void>('/video/deleteBatch', { video_ids: videoIds })
 }

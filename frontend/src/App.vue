@@ -37,7 +37,10 @@
 
       <div class="user-status">
         <div v-if="auth.isLoggedIn" class="user-info">
-          <div class="avatar">{{ auth.claims?.username?.[0]?.toUpperCase() || 'U' }}</div>
+          <div v-if="auth.avatarUrl" class="avatar-img">
+            <img :src="getFullAvatarUrl(auth.avatarUrl)" alt="头像" />
+          </div>
+          <div v-else class="avatar">{{ auth.claims?.username?.[0]?.toUpperCase() || 'U' }}</div>
           <span class="username">{{ auth.claims?.username || '用户' }}</span>
           <div class="status-dot online"></div>
         </div>
@@ -97,13 +100,18 @@ import {
 } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
 
-const route = useRoute()  // 当前路由
-const router = useRouter() // 路由实例
-const auth = useAuthStore() // 认证状态
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 
-const searchQuery = ref('') // 搜索关键词
+const searchQuery = ref('')
 
-// 页面标题
+function getFullAvatarUrl(path: string) {
+  if (!path) return ''
+  if (path.startsWith('http')) return path
+  return `http://localhost:8080${path}`
+}
+
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/': '推荐',
@@ -116,10 +124,8 @@ const pageTitle = computed(() => {
   return titles[route.path] || 'FeedVideo'
 })
 
-// 搜索
 function handleSearch() {
   if (!searchQuery.value.trim()) return
-  // 简单实现：跳转到首页并带搜索参数
   router.push({ path: '/', query: { q: searchQuery.value } })
 }
 </script>
@@ -229,6 +235,20 @@ body {
   font-size: 14px;
   font-weight: bold;
   color: #fff;
+}
+
+.avatar-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e94560;
+}
+
+.avatar-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .username {
