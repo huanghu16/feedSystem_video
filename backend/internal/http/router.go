@@ -3,8 +3,11 @@ package http
 import (
 	"feedSystem_video/internal/account"
 	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/config"
 	"feedSystem_video/internal/feed" //新增
+	cors "feedSystem_video/internal/middleware/cors"
 	"feedSystem_video/internal/middleware/jwt"
+	"feedSystem_video/internal/middleware/ratelimit"
 	"feedSystem_video/internal/social" //新增
 	"feedSystem_video/internal/video"
 
@@ -15,8 +18,12 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default() // 创建 Gin 引擎
 
-	// 设置最大 multipart 内存为 128MB（支持大文件上传）
-	r.MaxMultipartMemory = 128 << 20 // 128 MB
+	// 设置最大 multipart 内存为 256MB（支持大文件上传）
+	r.MaxMultipartMemory = 256 << 20 // 256 MB
+
+	// 全局中间件：CORS 跨域 + 限流（每秒 20 请求，突发上限 40）
+	r.Use(cors.CORS())
+	r.Use(ratelimit.Middleware(20, 40))
 
 	// 健康检查路由
 	r.GET("/healthz", func(c *gin.Context) {
@@ -71,8 +78,8 @@ func SetupRouter() *gin.Engine {
 	// 搜索视频
 	r.POST("/video/search", videoHandler.SearchVideos) //新增
 
-	// 静态文件服务（让上传的视频可以通过 URL 访问）
-	r.Static("/static", "./uploads")
+	// 静态文件服务（让上传的视频可以通过 URL 访问，路径从配置读取）
+	r.Static(config.C.Storage.StaticPath, config.C.Storage.UploadDir)
 
 	// --- Like 模块 ---
 	likeGroup := r.Group("/like")

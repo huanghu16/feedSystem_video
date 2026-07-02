@@ -18,13 +18,29 @@ func (r *Repo) Create(video *Video) error {
 	return db.DB.Create(video).Error
 }
 
-// ListByAuthorID 按作者 ID 查询视频列表（按时间倒序）
-func (r *Repo) ListByAuthorID(authorID uint) ([]Video, error) {
+// ListByAuthorID 分页查询指定作者的视频列表
+// page 从 1 开始，size 为每页条数
+// 返回视频列表和总数
+func (r *Repo) ListByAuthorID(authorID uint, page, size int) ([]Video, int64, error) {
 	var videos []Video
-	err := db.DB.Where("author_id = ?", authorID).
+	var total int64
+
+	// 先查总数
+	if err := db.DB.Model(&Video{}).Where("author_id = ?", authorID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * size
+	if err := db.DB.Where("author_id = ?", authorID).
 		Order("created_at DESC").
-		Find(&videos).Error
-	return videos, err
+		Offset(offset).
+		Limit(size).
+		Find(&videos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return videos, total, nil
 }
 
 // GetByID 根据 ID 查询视频详情
@@ -67,6 +83,43 @@ func (r *Repo) DeleteLike(videoID, accountID uint) error {
 		Delete(&Like{}).Error
 }
 
+// CreateLikeTx 在事务中创建点赞记录并增加计数（保证原子性）
+func (r *Repo) CreateLikeTx(videoID, accountID uint) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		like := Like{VideoID: videoID, AccountID: accountID}
+		if err := tx.Create(&like).Error; err != nil {
+			return err
+		}
+		// 增加视频点赞数
+		if err := tx.Model(&Video{}).
+			Where("id = ?", videoID).
+			UpdateColumn("likes_count", gorm.Expr("likes_count + ?", 1)).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// DeleteLikeTx 在事务中删除点赞记录并减少计数（保证原子性）
+func (r *Repo) DeleteLikeTx(videoID, accountID uint) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("video_id = ? AND account_id = ?", videoID, accountID).
+			Delete(&Like{})
+		if result.Error != nil {
+			return result.Error
+		}
+		// 仅当确实删除了记录时才减少计数
+		if result.RowsAffected > 0 {
+			if err := tx.Model(&Video{}).
+				Where("id = ?", videoID).
+				UpdateColumn("likes_count", gorm.Expr("GREATEST(likes_count - ?, 0)", 1)).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // IsLiked 查询是否已赞
 func (r *Repo) IsLiked(videoID, accountID uint) (bool, error) {
 	var count int64
@@ -106,13 +159,48 @@ func (r *Repo) CreateComment(comment *Comment) error {
 	return db.DB.Create(comment).Error
 }
 
-// ListCommentsByVideoID 查询视频的评论列表（按时间正序）
-func (r *Repo) ListCommentsByVideoID(videoID uint) ([]Comment, error) {
+// CreateCommentTx 在事务中创建评论并增加评论计数（保证原子性）
+func (r *Repo) CreateCommentTx(comment *Comment) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(comment).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Video{}).
+			Where("id = ?", comment.VideoID).
+			UpdateColumn("comments_count", gorm.Expr("comments_count + ?", 1)).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// ListCommentsByVideoID 分页查询视频的评论列表（按时间正序）
+// JOIN accounts 表获取评论者头像，消除 N+1 查询
+// page 从 1 开始，size 为每页条数
+// 返回评论列表和总数
+func (r *Repo) ListCommentsByVideoID(videoID uint, page, size int) ([]Comment, int64, error) {
 	var comments []Comment
-	err := db.DB.Where("video_id = ?", videoID).
-		Order("created_at ASC").
-		Find(&comments).Error
-	return comments, err
+	var total int64
+
+	// 先查总数
+	if err := db.DB.Model(&Comment{}).Where("video_id = ?", videoID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询，JOIN accounts 获取头像
+	offset := (page - 1) * size
+	if err := db.DB.Table("comments").
+		Select("comments.id, comments.video_id, comments.account_id, comments.username, comments.content, comments.created_at, accounts.avatar_url AS avatar_url").
+		Joins("LEFT JOIN accounts ON accounts.id = comments.account_id").
+		Where("comments.video_id = ?", videoID).
+		Order("comments.created_at ASC").
+		Offset(offset).
+		Limit(size).
+		Scan(&comments).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return comments, total, nil
 }
 
 // IncrementCommentsCount 增加视频评论数

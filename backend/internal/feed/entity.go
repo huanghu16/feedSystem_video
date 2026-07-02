@@ -1,24 +1,22 @@
 package feed
 
-import "time"
+import "feedSystem_video/internal/video"
 
-// FeedVideoItem Feed 视频项
-type FeedVideoItem struct {
-	ID            uint      `json:"id"`             // 视频 ID
-	AuthorID      uint      `json:"author_id"`      // 作者 ID
-	Username      string    `json:"username"`       // 作者用户名
-	Title         string    `json:"title"`          // 标题
-	Description   string    `json:"description"`    // 描述
-	PublishDate   string    `json:"publish_date"`   // 发布时间
-	PlayURL       string    `json:"play_url"`       // 播放地址
-	CoverURL      string    `json:"cover_url"`      // 封面地址
-	LikesCount    int       `json:"likes_count"`    // 点赞数
-	PlayCount     int       `json:"play_count"`     // 播放量
-	CommentsCount int       `json:"comments_count"` // 评论数
-	CreatedAt     time.Time `json:"created_at"`     // 创建时间
+// FeedVideoItem Feed 流视频项
+// 直接复用 video.VideoItem，消除冗余类型定义
+type FeedVideoItem = video.VideoItem
+
+// ListLatestRequest 最新视频列表请求
+type ListLatestRequest struct {
+	Page int `json:"page"` // 页码，从 1 开始
+	Size int `json:"size"` // 每页条数，默认 10，最大 50
 }
 
-// ListLatestRequest 最新视频请求
-type ListLatestRequest struct {
-	// 空请求，查询全局最新
+// ListLatestResponse 最新视频列表响应（带分页）
+type ListLatestResponse struct {
+	List    []FeedVideoItem `json:"list"`
+	Total   int64           `json:"total"`
+	Page    int             `json:"page"`
+	Size    int             `json:"size"`
+	HasMore bool            `json:"has_more"`
 }

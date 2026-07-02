@@ -21,6 +21,10 @@ func NewService(repo *Repo) *Service {
 var (
 	ErrUserAlreadyExists = errors.New("用户名已存在")
 	ErrUserNotFound      = errors.New("用户不存在")
+	ErrPasswordWrong     = errors.New("密码错误")
+	ErrOldPasswordWrong  = errors.New("原密码错误")
+	ErrAvatarURLEmpty    = errors.New("头像URL不能为空")
+	ErrBioTooLong        = errors.New("简介不能超过256个字符")
 )
 
 // Register 注册新用户
@@ -65,7 +69,7 @@ func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
 
 	// 第二步：验证密码
 	if !CheckPassword(account.Password, req.Password) {
-		return nil, errors.New("密码错误")
+		return nil, ErrPasswordWrong
 	}
 
 	// 第三步：生成双 Token
@@ -98,7 +102,7 @@ func (s *Service) GetProfile(userID uint) (*ProfileResponse, error) {
 // UpdateAvatar 更新用户头像
 func (s *Service) UpdateAvatar(userID uint, avatarURL string) error {
 	if avatarURL == "" {
-		return errors.New("头像URL不能为空")
+		return ErrAvatarURLEmpty
 	}
 	return s.repo.UpdateAvatar(userID, avatarURL)
 }
@@ -115,7 +119,7 @@ func (s *Service) ChangePassword(userID uint, oldPassword, newPassword string) e
 	}
 
 	if !CheckPassword(account.Password, oldPassword) {
-		return errors.New("原密码错误")
+		return ErrOldPasswordWrong
 	}
 
 	// 哈希新密码
@@ -131,7 +135,7 @@ func (s *Service) ChangePassword(userID uint, oldPassword, newPassword string) e
 // UpdateBio 更新用户简介
 func (s *Service) UpdateBio(userID uint, bio string) error {
 	if len(bio) > 256 {
-		return errors.New("简介不能超过256个字符")
+		return ErrBioTooLong
 	}
 	return s.repo.UpdateBio(userID, bio)
 }

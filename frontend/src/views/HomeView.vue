@@ -15,17 +15,22 @@
         @click="playVideo(video)"
       >
         <div class="video-cover">
-          <img v-if="video.cover_url" :src="getFullUrl(video.cover_url)" class="cover-image" />
+          <!-- 播放中：显示 video 播放器 -->
           <video
-            v-else-if="playingId === video.id"
+            v-if="playingId === video.id"
             :src="getFullUrl(video.play_url)"
             controls
             autoplay
             class="video-player"
           />
-          <div v-else class="cover-placeholder">
-            <el-icon :size="48" color="rgba(255,255,255,0.3)"><VideoPlay /></el-icon>
-          </div>
+          <!-- 未播放：显示封面图 + 播放图标叠加 -->
+          <template v-else>
+            <img v-if="video.cover_url" :src="getFullUrl(video.cover_url)" class="cover-image" />
+            <div v-else class="cover-placeholder"></div>
+            <div class="play-overlay">
+              <el-icon :size="48" color="#fff"><VideoPlay /></el-icon>
+            </div>
+          </template>
         </div>
         <div class="video-info">
           <h3>{{ video.title }}</h3>
@@ -81,9 +86,15 @@
         <h3>评论</h3>
         <div class="comment-list">
           <div v-for="c in comments" :key="c.id" class="comment-item">
-            <strong>@{{ c.username }}</strong>
-            <p>{{ c.content }}</p>
-            <span class="time">{{ formatTime(c.created_at) }}</span>
+            <div class="comment-avatar">
+              <img v-if="c.avatar_url" :src="getFullAvatarUrl(c.avatar_url)" alt="头像" />
+              <div v-else class="avatar-fallback">{{ c.username?.[0]?.toUpperCase() || 'U' }}</div>
+            </div>
+            <div class="comment-body">
+              <strong>@{{ c.username }}</strong>
+              <p>{{ c.content }}</p>
+              <span class="time">{{ formatTime(c.created_at) }}</span>
+            </div>
           </div>
           <el-empty v-if="comments.length === 0" description="暂无评论" />
         </div>
@@ -110,12 +121,13 @@ import { ElMessage } from 'element-plus'
 import { VideoPlay, Star, ChatDotRound, Loading, UserFilled, Calendar } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { listLatest } from '../api/feed'
-import { like, unlike, isLiked } from '../api/like'
+import { like, unlike, isLiked as checkIsLiked } from '../api/like'
 import { listComments, publishComment } from '../api/comment'
 import { recordPlay, searchVideos } from '../api/video'
-import { follow as followUser, unfollow as unfollowUser } from '../api/social'
-import { postJson } from '../api/client'
+import { follow as followUser, unfollow as unfollowUser, isFollowing as checkIsFollowing } from '../api/social'
 import type { FeedVideoItem, CommentItem } from '../api/types'
+import { getFullUrl, getFullAvatarUrl } from '../composables/useImageUrl'
+import { formatDate, formatTime } from '../composables/useFormat'
 
 const router = useRouter()
 const route = useRoute()
@@ -134,33 +146,6 @@ const total = ref(0)
 const loading = ref(false)
 const searchKeyword = ref('')
 
-function getFullUrl(path: string) {
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-
-  // 如果是 ISO 8601 格式（后端返回的时间）
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return ''
-
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-
-  return date.toLocaleDateString('zh-CN')
-}
-
 onMounted(async () => {
   const q = route.query.q as string
   if (q) {
@@ -172,8 +157,9 @@ onMounted(async () => {
 })
 
 watch(() => route.query.q, async (newQ) => {
-  if (newQ) {
-    searchKeyword.value = newQ
+  const q = newQ as string
+  if (q) {
+    searchKeyword.value = q
     await loadSearchResults(1)
   } else {
     searchKeyword.value = ''
@@ -184,22 +170,11 @@ watch(() => route.query.q, async (newQ) => {
 async function loadFeed() {
   try {
     const data = await listLatest()
-    videos.value = data.map(v => ({ ...v, isLiked: false, isFollowing: false }))
-    total.value = data.length
+    videos.value = data.list.map(v => ({ ...v, isLiked: false, isFollowing: false }))
+    total.value = data.total
 
     if (auth.isLoggedIn) {
-      await Promise.all(
-        videos.value.map(async (video) => {
-          if (auth.user?.id !== video.author_id) {
-            try {
-              const result = await postJson<{ is_following: boolean }>('/social/isFollowing', {
-                vlogger_id: video.author_id
-              })
-              video.isFollowing = result.is_following
-            } catch {}
-          }
-        })
-      )
+      await loadVideoInteractions()
     }
   } catch {
     ElMessage.error('加载失败')
@@ -217,24 +192,33 @@ async function loadSearchResults(page: number) {
     currentPage.value = result.page
 
     if (auth.isLoggedIn) {
-      await Promise.all(
-        videos.value.map(async (video) => {
-          if (auth.user?.id !== video.author_id) {
-            try {
-              const result = await postJson<{ is_following: boolean }>('/social/isFollowing', {
-                vlogger_id: video.author_id
-              })
-              video.isFollowing = result.is_following
-            } catch {}
-          }
-        })
-      )
+      await loadVideoInteractions()
     }
   } catch {
     ElMessage.error('搜索失败')
   } finally {
     loading.value = false
   }
+}
+
+// 加载视频的点赞状态和关注状态（登录后调用）
+async function loadVideoInteractions() {
+  await Promise.all(
+    videos.value.map(async (video) => {
+      // 跳过自己的视频
+      if (auth.user?.id === video.author_id) return
+
+      try {
+        const result = await checkIsFollowing(video.author_id)
+        video.isFollowing = result.is_following
+      } catch {}
+
+      try {
+        const liked = await checkIsLiked(video.id)
+        video.isLiked = liked.is_liked
+      } catch {}
+    })
+  )
 }
 
 function playVideo(video: FeedVideoItem) {
@@ -298,7 +282,8 @@ async function showComments(video: FeedVideoItem) {
   currentVideoId.value = video.id
   commentDrawer.value = true
   try {
-    comments.value = await listComments(video.id)
+    const resp = await listComments(video.id)
+    comments.value = resp.list
   } catch {
     ElMessage.error('加载评论失败')
   }
@@ -309,6 +294,11 @@ async function submitComment() {
   try {
     const comment = await publishComment(currentVideoId.value, newComment.value)
     comments.value.push(comment)
+    // 同步更新视频卡片上的评论计数
+    const video = videos.value.find(v => v.id === currentVideoId.value)
+    if (video) {
+      video.comments_count = (video.comments_count || 0) + 1
+    }
     newComment.value = ''
     ElMessage.success('评论成功')
   } catch {
@@ -316,20 +306,9 @@ async function submitComment() {
   }
 }
 
-function formatTime(time: string) {
-  return new Date(time).toLocaleString('zh-CN')
-}
-
-async function handlePageChange(page: number) {
-  if (searchKeyword.value) {
-    await loadSearchResults(page)
-  } else {
-    ElMessage.info('首页暂不支持分页')
-  }
-}
-
 function clearSearch() {
-  window.location.href = '/'
+  searchKeyword.value = ''
+  router.push('/')
 }
 </script>
 
@@ -414,9 +393,31 @@ function clearSearch() {
 .cover-placeholder {
   width: 100%;
   height: 100%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+/* 播放图标叠加层：覆盖在封面图上，鼠标悬停时高亮 */
+.play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  transition: background 0.3s ease;
+  pointer-events: none; /* 不拦截点击事件，让父级 card 的 @click 生效 */
+}
+
+.video-card:hover .play-overlay {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.video-card:hover .play-overlay .el-icon {
+  transform: scale(1.15);
+  transition: transform 0.3s ease;
 }
 
 .video-info {
@@ -533,8 +534,42 @@ function clearSearch() {
 }
 
 .comment-item {
+  display: flex;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.comment-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.comment-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .comment-item strong {

@@ -9,15 +9,10 @@ const router = createRouter({
             name: 'home',
             component: () => import('../views/HomeView.vue'),
         },
-        {   // 账户
+        {   // 账户（登录/注册合一）
             path: '/account',
             name: 'account',
             component: () => import('../views/AccountView.vue'),
-        },
-        {   // 注册
-            path: '/account/register',
-            name: 'register',
-            component: () => import('../views/RegisterView.vue'),
         },
         {   // 设置
             path: '/settings',
@@ -46,6 +41,11 @@ const router = createRouter({
             name: 'profile',
             meta: { requiresAuth: true },  // 需要登录
             component: () => import('../views/ProfileView.vue'),
+        },
+        {   // 404 兜底路由
+            path: '/:pathMatch(.*)*',
+            name: 'not-found',
+            component: () => import('../views/NotFoundView.vue'),
         },
     ],
 })

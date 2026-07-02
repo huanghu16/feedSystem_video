@@ -1,12 +1,19 @@
 server:
   port: 8080
+  read_timeout_sec: 30
+  write_timeout_sec: 30
 
 mysql:
   host: 127.0.0.1
-  port: 3308
+  port: 3306
   user: root
   password: "123456"
   database: feed_system_video
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_life_sec: 3600
+  conn_max_idle_sec: 300
+  log_level: warn
 
 redis:
   host: 127.0.0.1
@@ -17,10 +24,17 @@ redis:
 jwt:
   secret: "feedSystem_video-dev-secret-key"
   access_ttl: 900       # 15分钟（秒）
-  refresh_ttl: 604800    # 7天（秒）go get github.com/redis/go-redis/v9
+  refresh_ttl: 604800    # 7天（秒）
 
 rabbitmq:
   host: 127.0.0.1
   port: 5672
-  user: guest
-  password: guest
+  user: admin
+  password: "123456"
+
+storage:
+  upload_dir: "uploads"
+  static_path: "/static"
+  # FFmpeg 路径：留空或填 "ffmpeg" 则使用系统 PATH 中的 ffmpeg；
+  # Windows 可填绝对路径如 "E:/ffmpeg/bin/ffmpeg.exe"
+  ffmpeg_path: "ffmpeg"

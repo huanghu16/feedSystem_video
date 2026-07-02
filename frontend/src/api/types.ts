@@ -1,75 +1,64 @@
-// 和后端 DTO 对应的 TypeScript 类型
+/**
+ * 全局类型定义
+ * VideoItem 和 FeedVideoItem 字段完全相同，合并为 VideoItem 一个类型
+ * FeedVideoItem 保留为类型别名，保持向后兼容
+ */
 
-// 登录返回的令牌
 export interface TokenResponse {
-    access_token: string    // 访问令牌
-    refresh_token: string   // 刷新令牌
-    expires_in: number  // 令牌过期时间
+  access_token: string
+  refresh_token: string
 }
 
-// 账户信息
 export interface Account {
-    id: number
-    username: string
-    avatar_url: string   // 头像
-    bio: string  // 简介
-    created_at: string  // 创建时间
+  id: number
+  username: string
+  avatar_url: string
+  bio: string
+  created_at: string
 }
 
-// 视频信息
 export interface VideoItem {
-    id: number
-    author_id: number
-    username: string
-    title: string
-    description: string
-    publish_date: string
-    play_url: string
-    cover_url: string
-    likes_count: number
-    play_count: number
-    comments_count: number
-    created_at: string
+  id: number
+  author_id: number
+  username: string
+  title: string
+  description: string
+  publish_date: string
+  play_url: string
+  cover_url: string
+  likes_count: number
+  play_count: number
+  comments_count: number
+  created_at: string
 }
 
-// 视频列表
-export interface FeedVideoItem {
-    id: number
-    author_id: number
-    username: string
-    title: string
-    description: string
-    publish_date: string
-    play_url: string
-    cover_url: string
-    likes_count: number
-    play_count: number
-    comments_count: number
-    created_at: string
-}
+// FeedVideoItem 与 VideoItem 字段完全相同，使用类型别名消除冗余
+export type FeedVideoItem = VideoItem
 
-// 评论信息
 export interface CommentItem {
-    id: number
-    username: string
-    content: string
-    created_at: string
+  id: number
+  username: string
+  avatar_url: string
+  content: string
+  created_at: string
 }
 
-// 粉丝信息
 export interface FollowerItem {
-    id: number
-    username: string
+  id: number
+  username: string
 }
 
-// 视频作者信息
 export interface VloggerItem {
-    id: number
-    username: string
+  id: number
+  username: string
+  avatar_url: string
+  bio: string
+  video_count: number
+  fans_count: number
+  following_count: number
 }
 
-// 粉丝数和视频作者数
 export interface FollowCounts {
-    followers_count: number  // 粉丝数
-    vloggers_count: number  // 视频作者数
+  fans_count: number
+  following_count: number
 }

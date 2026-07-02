@@ -2,9 +2,10 @@ package feed
 
 import (
 	"context"
+	"feedSystem_video/internal/middleware/feedcache"
 	"feedSystem_video/internal/middleware/redis"
-	"fmt"
-	"time"
+	"feedSystem_video/internal/video"
+	"log"
 )
 
 // Service Feed 业务逻辑
@@ -12,59 +13,79 @@ type Service struct {
 	repo *Repo
 }
 
-// NewService 创建 Service
 func NewService(repo *Repo) *Service {
 	return &Service{repo: repo}
 }
 
-// 缓存 key 前缀（带版本号，方便以后批量失效）
-const feedCachePrefix = "v1:feed:latest"
+// ListLatest 获取最新视频列表（带分页 + Redis 缓存）
+// 缓存策略：仅缓存第一页（page=1）的默认条数，其他页直接查库
+func (s *Service) ListLatest(req *ListLatestRequest) (*ListLatestResponse, error) {
+	page, size := normalizePaging(req.Page, req.Size)
 
-// ListLatest 获取最新视频列表（带 Redis 缓存）
-func (s *Service) ListLatest() ([]FeedVideoItem, error) {
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("%s:all", feedCachePrefix)
-
-	// 第一步：先查 Redis 缓存
-	var cached []FeedVideoItem                        // 缓存数据
-	hit, err := redis.GetJSON(ctx, cacheKey, &cached) // 从 Redis 获取缓存数据
-	if err != nil {
-		// 缓存读取异常，降级查数据库
-		fmt.Println("[Feed] 缓存读取异常，降级查数据库")
-	} else if hit {
-		// 缓存命中，直接返回
-		fmt.Println("[Feed] 缓存命中")
-		return cached, nil
-	}
-
-	// 第二步：缓存未命中，查数据库
-	fmt.Println("[Feed] 缓存未命中，查数据库")
-	videos, err := s.repo.ListLatest(20) // 默认返回 20 条
-	if err != nil {
-		return nil, err
-	}
-
-	// 转换成 FeedVideoItem
-	items := make([]FeedVideoItem, len(videos))
-	for i, v := range videos {
-		items[i] = FeedVideoItem{
-			ID:            v.ID,            // 视频 ID
-			AuthorID:      v.AuthorID,      // 作者 ID
-			Username:      v.Username,      // 作者名
-			Title:         v.Title,         // 标题
-			Description:   v.Description,   // 描述
-			PublishDate:   v.PublishDate,   // 发布日期
-			PlayURL:       v.PlayURL,       // 播放地址
-			CoverURL:      v.CoverURL,      // 封面
-			LikesCount:    v.LikesCount,    // 点赞数
-			PlayCount:     v.PlayCount,     // 播放量
-			CommentsCount: v.CommentsCount, // 评论数
-			CreatedAt:     v.CreatedAt,     // 创建时间
+	// 仅缓存第一页
+	if page == 1 {
+		// 先尝试读缓存
+		var cached []video.Video
+		if ok, _ := redis.GetJSON(context.Background(), feedcache.CacheKeyLatest, &cached); ok {
+			log.Printf("[Feed] 缓存命中，返回 %d 条视频", len(cached))
+			total := int64(len(cached))
+			items := videosToItems(cached)
+			return &ListLatestResponse{
+				List:    items,
+				Total:   total,
+				Page:    page,
+				Size:    size,
+				HasMore: total > int64(size),
+			}, nil
 		}
 	}
 
-	// 第三步：回填缓存（5 分钟过期）
-	_ = redis.SetJSON(ctx, cacheKey, items, 5*time.Minute)
+	// 查库
+	videos, total, err := s.repo.ListLatest(page, size)
+	if err != nil {
+		log.Printf("[Feed] 查询最新视频失败: %v", err)
+		return nil, err
+	}
 
-	return items, nil
+	items := videosToItems(videos)
+
+	// 仅缓存第一页
+	if page == 1 {
+		if err := redis.SetJSON(context.Background(), feedcache.CacheKeyLatest, videos, feedcache.CacheTTL); err != nil {
+			log.Printf("[Feed] 缓存写入失败（不影响响应）: %v", err)
+		}
+	}
+
+	hasMore := int64(page*size) < total
+
+	return &ListLatestResponse{
+		List:    items,
+		Total:   total,
+		Page:    page,
+		Size:    size,
+		HasMore: hasMore,
+	}, nil
+}
+
+// videosToItems 批量转换 Video 列表为 FeedVideoItem 列表
+func videosToItems(videos []video.Video) []FeedVideoItem {
+	items := make([]FeedVideoItem, 0, len(videos))
+	for i := range videos {
+		items = append(items, video.VideoToItem(&videos[i]))
+	}
+	return items
+}
+
+// normalizePaging 规范化分页参数
+func normalizePaging(page, size int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 10
+	}
+	if size > 50 {
+		size = 50
+	}
+	return page, size
 }

@@ -1,122 +1,186 @@
-// HTTP 请求封装
-// 所有 API 调用都通过这里发出，统一处理 token 和错误
+import { useAuthStore } from '../stores/auth'
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/api'  // API 地址
+// 后端 API 基础地址，支持环境变量覆盖
+const baseURL = import.meta.env.VITE_API_BASE || '/api'
 
-// 统一响应格式（和后端 apierror.Response 对应）
-interface ApiResponse<T = any> {
-    code: number    // 错误码
-    message: string // 错误信息
-    data: T  // 数据
+// 默认请求超时时间（毫秒）
+const DEFAULT_TIMEOUT = 15000
+
+// 统一响应格式
+export interface ApiResponse<T> {
+  code: number
+  message: string
+  data: T
 }
 
-// 自定义错误类
-class ApiError extends Error {
-    status: number    // 状态码
-    payload: any  // 错误数据
+// 自定义 API 错误
+export class ApiError extends Error {
+  status: number
+  payload: any
 
-    constructor(status: number, payload: any) {
-        super(payload?.message || '请求失败')
-        this.status = status
-        this.payload = payload
-    }
+  constructor(status: number, payload: any) {
+    super(payload?.message || `HTTP ${status}`)
+    this.status = status
+    this.payload = payload
+  }
 }
 
-// 是否正在刷新 token
-let isRefreshing = false    // 是否正在刷新 token
-let refreshPromise: Promise<string> | null = null  // 刷新 token 的 Promise
+// ===== Token 刷新机制（防止并发刷新）=====
+let isRefreshing = false
+let refreshPromise: Promise<string> | null = null
 
-// 获取 token
-function getToken(): string {
-    return localStorage.getItem('access_token') || ''
-}
+async function refreshToken(): Promise<string> {
+  const auth = useAuthStore()
+  if (!auth.refreshTokenValue) {
+    throw new Error('No refresh token')
+  }
 
-// POST JSON 请求
-export async function postJson<T = any>(path: string, body?: any): Promise<T> {
-    const res = await fetch(`${API_BASE}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-        },
-        body: body ? JSON.stringify(body) : undefined,
-    })
-
-    // 检查响应类型是否为 JSON
-    const contentType = res.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
-        const text = await res.text()
-        console.error('非JSON响应:', text)
-        throw new ApiError(res.status, { message: '服务器响应格式错误' })
-    }
-
-    const json: ApiResponse<T> = await res.json()
-
-    if (res.status === 401 && path !== '/account/refresh') {
-        // token 过期，尝试刷新
-        const newToken = await refreshToken()
-        if (newToken) {
-            // 用新 token 重试原请求
-            return postJson<T>(path, body)
-        }
-    }
-
-    if (json.code !== 0) {
-        throw new ApiError(res.status, json)
-    }
-
-    return json.data
-}
-
-// POST FormData 请求（文件上传用）
-export async function postForm<T = any>(path: string, formData: FormData): Promise<T> {
-    const res = await fetch(`${API_BASE}${path}`, {
-        method: 'POST',
-        headers: {
-            ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-        },
-        body: formData,
-    })
-
-    const json: ApiResponse<T> = await res.json()
-
-    if (json.code !== 0) {
-        throw new ApiError(res.status, json)
-    }
-
-    return json.data
-}
-
-// 刷新 token
-async function refreshToken(): Promise<string | null> {
-    const refreshTokenValue = localStorage.getItem('refresh_token')
-    if (!refreshTokenValue) return null
-
-    if (isRefreshing && refreshPromise) {
-        return refreshPromise // 防止并发刷新
-    }
-
-    isRefreshing = true
-    refreshPromise = (async () => {
-        try {
-            const res = await fetch(`${API_BASE}/account/refresh`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token: refreshTokenValue }),
-            })
-            const json: ApiResponse<{ access_token: string; expires_in: number }> = await res.json()
-            if (json.code === 0 && json.data) {
-                localStorage.setItem('access_token', json.data.access_token)
-                return json.data.access_token
-            }
-            return null
-        } catch {
-            return null
-        } finally {
-            isRefreshing = false
-            refreshPromise = null
-        }
-    })()
-
+  // 如果正在刷新，复用同一个 Promise
+  if (isRefreshing && refreshPromise) {
     return refreshPromise
+  }
+
+  isRefreshing = true
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${baseURL}/account/refreshToken`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${auth.refreshTokenValue}`,
+        },
+        signal: AbortSignal.timeout(DEFAULT_TIMEOUT),
+      })
+      if (!res.ok) throw new Error('Refresh failed')
+      const data: ApiResponse<{ access_token: string; refresh_token: string }> = await res.json()
+      if (data.code !== 0) throw new Error(data.message)
+      auth.setTokens(data.data.access_token, data.data.refresh_token)
+      return data.data.access_token
+    } finally {
+      isRefreshing = false
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+// ===== 核心 HTTP 方法 =====
+
+/**
+ * 发送 GET 请求（查询类接口使用）
+ */
+export async function getJson<T>(path: string, params?: Record<string, any>): Promise<T> {
+  const url = params
+    ? `${baseURL}${path}?${new URLSearchParams(
+        Object.entries(params).reduce((acc, [k, v]) => {
+          acc[k] = String(v)
+          return acc
+        }, {} as Record<string, string>)
+      )}`
+    : `${baseURL}${path}`
+
+  return doFetch<T>(url, {
+    method: 'GET',
+    headers: buildHeaders(),
+  })
+}
+
+/**
+ * 发送 POST JSON 请求
+ */
+export async function postJson<T>(path: string, body?: any): Promise<T> {
+  const url = `${baseURL}${path}`
+  return doFetch<T>(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeader(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+}
+
+/**
+ * 发送 POST FormData 请求（文件上传）
+ */
+export async function postForm<T>(path: string, formData: FormData): Promise<T> {
+  const url = `${baseURL}${path}`
+  return doFetch<T>(url, {
+    method: 'POST',
+    headers: buildAuthHeader(), // FormData 不设 Content-Type，浏览器自动添加 boundary
+    body: formData,
+  })
+}
+
+// ===== 内部辅助函数 =====
+
+function buildAuthHeader(): Record<string, string> {
+  const auth = useAuthStore()
+  const headers: Record<string, string> = {}
+  if (auth.token) {
+    headers['Authorization'] = `Bearer ${auth.token}`
+  }
+  return headers
+}
+
+function buildHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    ...buildAuthHeader(),
+  }
+}
+
+/**
+ * 执行 fetch 请求，统一处理超时、401 刷新、错误解析
+ */
+async function doFetch<T>(url: string, init: RequestInit): Promise<T> {
+  // 添加超时控制
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
+
+  try {
+    let res = await fetch(url, { ...init, signal: controller.signal })
+
+    // 401 自动刷新重试
+    if (res.status === 401) {
+      try {
+        const newToken = await refreshToken()
+        // 用新 token 重试原请求
+        const headers = new Headers(init.headers)
+        headers.set('Authorization', `Bearer ${newToken}`)
+        res = await fetch(url, { ...init, headers, signal: controller.signal })
+      } catch {
+        // 刷新失败，清除 token
+        const auth = useAuthStore()
+        auth.clearTokens()
+        throw new ApiError(401, { message: '登录已过期，请重新登录' })
+      }
+    }
+
+    // 检查 Content-Type 是否为 JSON
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      throw new ApiError(res.status, { message: `服务器返回非 JSON 响应 (${res.status})` })
+    }
+
+    const data: ApiResponse<T> = await res.json()
+
+    if (data.code !== 0) {
+      throw new ApiError(res.status, data)
+    }
+
+    return data.data
+  } catch (err: any) {
+    // AbortError 即超时
+    if (err.name === 'AbortError') {
+      throw new ApiError(0, { message: '请求超时，请检查网络' })
+    }
+    // 已经是 ApiError 直接抛出
+    if (err instanceof ApiError) throw err
+    // 其他网络错误
+    throw new ApiError(0, { message: err.message || '网络错误' })
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }

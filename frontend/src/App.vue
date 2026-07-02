@@ -95,22 +95,17 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  HomeFilled, TrendCharts, Plus, ChatDotRound,
+  HomeFilled, TrendCharts, Plus,
   User, Setting, Search
 } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
+import { getFullAvatarUrl } from './composables/useImageUrl'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const searchQuery = ref('')
-
-function getFullAvatarUrl(path: string) {
-  if (!path) return ''
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
-}
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {

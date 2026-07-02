@@ -12,11 +12,26 @@ func NewRepo() *Repo {
 	return &Repo{}
 }
 
-// ListLatest 查询最新视频（按时间倒序）
-func (r *Repo) ListLatest(limit int) ([]video.Video, error) {
+// ListLatest 分页查询最新视频列表
+// page 从 1 开始，size 为每页条数
+// 返回视频列表和总数
+func (r *Repo) ListLatest(page, size int) ([]video.Video, int64, error) {
 	var videos []video.Video
-	err := db.DB.Order("created_at DESC").
-		Limit(limit).
-		Find(&videos).Error
-	return videos, err
+	var total int64
+
+	// 先查总数
+	if err := db.DB.Model(&video.Video{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * size
+	if err := db.DB.Order("created_at DESC").
+		Offset(offset).
+		Limit(size).
+		Find(&videos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return videos, total, nil
 }

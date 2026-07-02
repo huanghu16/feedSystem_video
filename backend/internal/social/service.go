@@ -56,46 +56,14 @@ func (s *Service) Unfollow(followerID, vloggerID uint) error {
 	return s.repo.DeleteFollow(followerID, vloggerID)
 }
 
-// GetFollowers 查询粉丝列表
-func (s *Service) GetFollowers(vloggerID uint) ([]FollowerItem, error) {
-	list, err := s.repo.GetFollowers(vloggerID)
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]FollowerItem, 0, len(list))
-	for _, follow := range list {
-		account, err := s.accountRepo.FindByID(follow.FollowerID) // 查询用户信息
-		if err != nil || account == nil {
-			continue
-		}
-		items = append(items, FollowerItem{
-			ID:       account.ID,
-			Username: account.Username,
-		})
-	}
-	return items, nil
+// GetFollowers 查询粉丝列表（JOIN 用户表，消除 N+1 查询，带分页）
+func (s *Service) GetFollowers(vloggerID uint, page, size int) ([]FollowerItem, int64, error) {
+	return s.repo.GetFollowersWithUser(vloggerID, page, size)
 }
 
-// GetVloggers 查询关注列表
-func (s *Service) GetVloggers(followerID uint) ([]VloggerItem, error) {
-	list, err := s.repo.GetVloggers(followerID)
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]VloggerItem, 0, len(list))
-	for _, follow := range list {
-		account, err := s.accountRepo.FindByID(follow.VloggerID)
-		if err != nil || account == nil {
-			continue
-		}
-		items = append(items, VloggerItem{
-			ID:       account.ID,
-			Username: account.Username,
-		})
-	}
-	return items, nil
+// GetVloggers 查询关注列表（JOIN 用户表，消除 N+1 查询，带分页）
+func (s *Service) GetVloggers(followerID uint, page, size int) ([]VloggerItem, int64, error) {
+	return s.repo.GetVloggersWithUser(followerID, page, size)
 }
 
 // GetCounts 查询粉丝数和关注数

@@ -101,6 +101,7 @@ import { ElMessage } from 'element-plus'
 import { Upload, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { getProfile, updateAvatar, changePassword, updateBio } from '../api/account'
+import { getFullAvatarUrl } from '../composables/useImageUrl'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -145,12 +146,6 @@ async function loadProfile() {
     console.error('加载用户资料失败:', error)
     ElMessage.error(error?.payload?.message || '加载用户资料失败')
   }
-}
-
-function getFullAvatarUrl(path: string) {
-  if (!path) return ''
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
 }
 
 const avatarInput = ref<HTMLInputElement | null>(null)

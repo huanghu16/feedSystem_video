@@ -24,7 +24,7 @@
             <span class="stat-value">{{ profile?.fans_count || 0 }}</span>
             <span class="stat-label">粉丝</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item" :class="{ clickable: isOwnProfile }" @click="isOwnProfile && openFollowingDrawer()">
             <span class="stat-value">{{ profile?.following_count || 0 }}</span>
             <span class="stat-label">关注</span>
           </div>
@@ -42,7 +42,7 @@
         <h2 class="section-title">作品</h2>
         <div class="section-actions">
           <el-button
-            v-if="videos.length > 0"
+            v-if="isOwnProfile && videos.length > 0"
             :class="batchMode ? 'glass-btn active' : 'glass-btn'"
             size="small"
             @click="toggleBatchMode"
@@ -51,7 +51,7 @@
             {{ batchMode ? '取消批量' : '批量管理' }}
           </el-button>
           <el-button
-            v-if="batchMode && selectedVideos.size > 0"
+            v-if="isOwnProfile && batchMode && selectedVideos.size > 0"
             :class="'glass-btn delete-selected-btn'"
             size="small"
             :loading="deleting"
@@ -80,7 +80,7 @@
           :class="{ selected: selectedVideos.has(video.id) }"
           @click="handleCardClick(video)"
         >
-          <div v-if="batchMode" class="select-checkbox" @click.stop="toggleSelect(video.id)">
+          <div v-if="isOwnProfile && batchMode" class="select-checkbox" @click.stop="toggleSelect(video.id)">
             <el-icon v-if="selectedVideos.has(video.id)" class="checked"><CircleCheckFilled /></el-icon>
             <div v-else class="checkbox-unchecked"></div>
           </div>
@@ -105,7 +105,7 @@
               <span><el-icon><ChatDotRound /></el-icon> {{ video.comments_count }}</span>
             </div>
           </div>
-          <div v-if="!batchMode" class="video-actions-overlay">
+          <div v-if="isOwnProfile && !batchMode" class="video-actions-overlay">
             <el-button
               type="danger"
               size="small"
@@ -132,21 +132,70 @@
         />
       </div>
     </div>
+
+    <!-- 关注列表抽屉 -->
+    <el-drawer v-model="followingDrawer" title="我的关注" size="400px" :with-header="false" class="following-drawer-wrapper">
+      <div class="following-drawer-content">
+        <h3>我的关注</h3>
+        <div class="following-list">
+          <div v-if="followingLoading" class="drawer-loading">
+            <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+            <span>加载中...</span>
+          </div>
+          <div v-else-if="followingList.length === 0" class="drawer-empty">
+            <el-empty description="暂未关注任何人" />
+          </div>
+          <div v-for="user in followingList" v-else :key="user.id" class="following-item">
+            <div class="following-avatar">
+              <img v-if="user.avatar_url" :src="getFullAvatarUrl(user.avatar_url)" alt="头像" />
+              <div v-else class="avatar-placeholder">
+                {{ user.username?.[0]?.toUpperCase() || 'U' }}
+              </div>
+            </div>
+            <div class="following-detail">
+              <strong class="following-name" @click="goToUserProfile(user.id)">{{ user.username }}</strong>
+              <p v-if="user.bio" class="following-bio">{{ user.bio }}</p>
+              <div class="following-stats">
+                <span>作品 {{ user.video_count || 0 }}</span>
+                <span>粉丝 {{ user.fans_count || 0 }}</span>
+                <span>关注 {{ user.following_count || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { VideoPlay, Star, ChatDotRound, Loading, Delete, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { getProfile, type ProfileInfo } from '../api/account'
 import { listByAuthor, deleteVideo, deleteVideosBatch } from '../api/video'
-import type { VideoItem } from '../api/types'
+import { getVloggers } from '../api/social'
+import type { VideoItem, VloggerItem } from '../api/types'
+import { getFullUrl, getFullAvatarUrl } from '../composables/useImageUrl'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
+
+// 获取目标用户 ID：优先从 query.uid（查看他人），否则用当前登录用户
+function getTargetUserId(): number | undefined {
+  const queryUid = route.query.uid
+  if (queryUid) {
+    const uid = Number(queryUid)
+    if (!isNaN(uid)) return uid
+  }
+  return auth.claims?.account_id
+}
+
+// 判断是否查看自己的主页
+const isOwnProfile = ref(true)
 
 const profile = ref<ProfileInfo | null>(null)
 const videos = ref<VideoItem[]>([])
@@ -163,17 +212,6 @@ const currentPage = ref(1)
 const pageSize = ref(12) // 每页12个（4列 x 3行）
 const total = ref(0)
 
-function getFullUrl(path: string) {
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
-}
-
-function getFullAvatarUrl(path: string) {
-  if (!path) return ''
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
-}
-
 onMounted(async () => {
   if (!auth.isLoggedIn) {
     ElMessage.warning('请先登录')
@@ -185,16 +223,25 @@ onMounted(async () => {
   await loadVideos()
 })
 
+// 监听路由 query 变化，支持查看不同用户
+watch(() => route.query.uid, async () => {
+  if (auth.isLoggedIn) {
+    await loadProfile()
+    await loadVideos()
+  }
+})
+
 async function loadProfile() {
   try {
-    const userId = auth.claims?.account_id
+    const userId = getTargetUserId()
     if (!userId) {
       ElMessage.error('无法获取用户信息')
       return
     }
+    isOwnProfile.value = userId === auth.claims?.account_id
     const data = await getProfile(userId)
     profile.value = data
-    if (data.avatar_url) {
+    if (isOwnProfile.value && data.avatar_url) {
       auth.setAvatar(data.avatar_url)
     }
   } catch (error: any) {
@@ -206,25 +253,16 @@ async function loadProfile() {
 async function loadVideos() {
   loading.value = true
   try {
-    const userId = auth.claims?.account_id
+    const userId = getTargetUserId()
     if (!userId) {
       ElMessage.error('无法获取用户信息')
       return
     }
 
-    const allVideos = await listByAuthor(userId)
-    console.log('=== 视频数据 ===')
-    console.log('allVideos:', allVideos)
-    console.log('allVideos.length:', allVideos.length)
-    console.log('Array.isArray(allVideos):', Array.isArray(allVideos))
+    const resp = await listByAuthor(userId)
 
-    total.value = allVideos.length
-
-    // 直接赋值，不分页（先确保能显示）
-    videos.value = allVideos
-
-    console.log('videos.value:', videos.value)
-    console.log('videos.value.length:', videos.value.length)
+    total.value = resp.total
+    videos.value = resp.list
   } catch (error: any) {
     console.error('加载作品失败:', error)
     ElMessage.error(error?.payload?.message || '加载作品失败')
@@ -324,11 +362,14 @@ async function handleBatchDelete() {
     videos.value = videos.value.filter(v => !selectedVideos.value.has(v.id))
     total.value = videos.value.length
 
+    // 记录删除数量（在 clear 之前）
+    const deletedCount = selectedVideos.value.size
+
     // 清空选择
     selectedVideos.value.clear()
     batchMode.value = false
 
-    ElMessage.success(`成功删除 ${selectedVideos.value.size} 个视频`)
+    ElMessage.success(`成功删除 ${deletedCount} 个视频`)
   } catch (error: any) {
     if (error !== 'cancel') {
       console.error('批量删除失败:', error)
@@ -338,7 +379,43 @@ async function handleBatchDelete() {
     deleting.value = false
   }
 }
+
+// ===== 关注列表抽屉 =====
+const followingDrawer = ref(false)
+const followingLoading = ref(false)
+const followingList = ref<VloggerItem[]>([])
+
+async function openFollowingDrawer() {
+  followingDrawer.value = true
+  followingLoading.value = true
+  try {
+    const resp = await getVloggers(1, 50)
+    followingList.value = resp.list
+  } catch (error: any) {
+    ElMessage.error(error?.payload?.message || '加载关注列表失败')
+  } finally {
+    followingLoading.value = false
+  }
+}
+
+// 点击用户名，跳转到该用户的详情页（只读查看）
+function goToUserProfile(userId: number) {
+  followingDrawer.value = false
+  router.push({ path: '/profile', query: { uid: String(userId) } })
+}
 </script>
+
+<style>
+.following-drawer-wrapper .el-drawer__body {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.following-drawer-wrapper .el-drawer {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+</style>
 
 <style scoped>
 .profile-page {
@@ -687,5 +764,133 @@ async function handleBatchDelete() {
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.8);
   border-radius: 6px;
+}
+
+/* ===== 关注统计项可点击 ===== */
+.stat-item.clickable {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.stat-item.clickable:hover {
+  transform: scale(1.1);
+}
+
+.stat-item.clickable:hover .stat-value {
+  color: #e94560;
+}
+
+/* ===== 关注列表抽屉（与评论抽屉同风格） ===== */
+.following-drawer-content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1a1a2e;
+  width: 100%;
+}
+
+.following-drawer-content h3 {
+  color: #fff;
+  margin: 0;
+  padding: 20px 24px 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 20px;
+}
+
+.following-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px;
+}
+
+.drawer-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.drawer-empty {
+  padding: 32px 0;
+}
+
+.following-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.following-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.following-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.following-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.following-detail strong {
+  color: #e94560;
+  font-size: 13px;
+}
+
+.following-name {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.following-name:hover {
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
+.following-bio {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  margin: 4px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.following-stats {
+  display: flex;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.following-stats span {
+  white-space: nowrap;
 }
 </style>

@@ -40,5 +40,15 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem('avatar_url')
     }
 
-    return { token, isLoggedIn, claims, avatarUrl, setTokens, setAvatar, clearTokens }
+    // 从 JWT claims 提取用户信息（计算属性）
+    // 提供 user 别名，修复 HomeView 中 auth.user?.id 的引用问题
+    const user = computed(() => {
+        if (!claims.value) return null
+        return {
+            id: claims.value.account_id,
+            username: claims.value.username,
+        }
+    })
+
+    return { token, refreshTokenValue, isLoggedIn, claims, avatarUrl, user, setTokens, setAvatar, clearTokens }
 })

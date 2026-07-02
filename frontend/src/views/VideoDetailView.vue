@@ -24,9 +24,29 @@
 
       <div class="comments">
         <h3>评论</h3>
+
+        <!-- 评论发表 -->
+        <div v-if="auth.isLoggedIn" class="comment-input">
+          <el-input
+            v-model="newComment"
+            placeholder="发表评论..."
+            @keyup.enter="submitComment"
+          />
+          <el-button type="primary" @click="submitComment" :loading="commenting">
+            发表
+          </el-button>
+        </div>
+
         <div v-for="c in comments" :key="c.id" class="comment">
-          <strong>@{{ c.username }}</strong>
-          <p>{{ c.content }}</p>
+          <div class="comment-avatar">
+            <img v-if="c.avatar_url" :src="getFullAvatarUrl(c.avatar_url)" alt="头像" />
+            <div v-else class="avatar-fallback">{{ c.username?.[0]?.toUpperCase() || 'U' }}</div>
+          </div>
+          <div class="comment-body">
+            <strong>@{{ c.username }}</strong>
+            <span class="time">{{ formatTime(c.created_at) }}</span>
+            <p>{{ c.content }}</p>
+          </div>
         </div>
         <el-empty v-if="comments.length === 0" description="暂无评论" />
       </div>
@@ -44,42 +64,38 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Star } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
-import { postJson } from '../api/client'
-import { like, unlike, isLiked } from '../api/like'
-import { listComments } from '../api/comment'
+import { like, unlike, isLiked as checkIsLiked } from '../api/like'
+import { getDetail } from '../api/video'
+import { listComments, publishComment } from '../api/comment'
 import type { VideoItem, CommentItem } from '../api/types'
+import { getFullUrl, getFullAvatarUrl } from '../composables/useImageUrl'
+import { formatTime } from '../composables/useFormat'
 
-const route = useRoute()  // 获取路由对象
-const router = useRouter() // 获取路由实例
-const auth = useAuthStore() // 获取认证状态
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 
-const video = ref<VideoItem | null>(null) // 视频详情
-const liked = ref(false) // 是否已点赞
-const comments = ref<CommentItem[]>([]) // 评论列表
-
-// 获取完整的图片路径
-function getFullUrl(path: string) {
-  if (path.startsWith('http')) return path
-  return `http://localhost:8080${path}`
-}
+const video = ref<VideoItem | null>(null)
+const liked = ref(false)
+const comments = ref<CommentItem[]>([])
+const newComment = ref('')
+const commenting = ref(false)
 
 // 加载视频详情、点赞状态、评论
 onMounted(async () => {
   const videoId = Number(route.params.id)
 
-  // 并行(Promise)加载视频详情、点赞状态、评论
   const promises: Promise<void>[] = [
-    postJson<VideoItem>('/video/getDetail', { id: videoId }).then(data => {
+    getDetail(videoId).then(data => {
       video.value = data
     }).catch(() => {
       ElMessage.error('视频不存在')
     }),
   ]
 
-  // 如果已登录，查询是否已赞
   if (auth.isLoggedIn) {
     promises.push(
-      isLiked(videoId).then(data => {
+      checkIsLiked(videoId).then(data => {
         liked.value = data.is_liked
       }).catch(() => {})
     )
@@ -90,7 +106,8 @@ onMounted(async () => {
   // 加载评论
   if (video.value) {
     try {
-      comments.value = await listComments(video.value.id)
+      const resp = await listComments(video.value.id)
+      comments.value = resp.list
     } catch {
       // 评论加载失败不影响页面
     }
@@ -116,6 +133,24 @@ async function toggleLike() {
     }
   } catch {
     ElMessage.error('操作失败')
+  }
+}
+
+// 发表评论
+async function submitComment() {
+  if (!video.value) return
+  if (!newComment.value.trim()) return
+
+  commenting.value = true
+  try {
+    const comment = await publishComment(video.value.id, newComment.value)
+    comments.value.push(comment)
+    newComment.value = ''
+    ElMessage.success('评论成功')
+  } catch {
+    ElMessage.error('评论失败')
+  } finally {
+    commenting.value = false
   }
 }
 </script>
@@ -191,16 +226,80 @@ async function toggleLike() {
   margin-bottom: 16px;
 }
 
+.comment-input {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.comment-input :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #e94560, #ff6b8a) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.comment-input :deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #d63851, #ff5a7a) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.comment-input :deep(.el-button--primary:active) {
+  transform: translateY(0);
+}
+
 .comment {
+  display: flex;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   max-width: 100%;
   box-sizing: border-box;
 }
 
+.comment-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.comment-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e94560, #ff6b8a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .comment strong {
   color: #e94560;
   font-size: 13px;
+}
+
+.comment .time {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  margin-left: 8px;
 }
 
 .comment p {

@@ -1,15 +1,17 @@
 package video
 
 import (
+	"errors"
 	"feedSystem_video/internal/apierror"
+	"feedSystem_video/internal/config"
 	"feedSystem_video/internal/middleware/jwt"
+	"feedSystem_video/internal/middleware/storage"
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,8 +24,38 @@ type Handler struct {
 // NewHandler 创建 Handler 实例
 func NewHandler(service *Service) *Handler {
 	return &Handler{
-		service: service, // 把参数(service)传进来的 service 变量，赋值给 Handler 结构体的 service 字段
+		service: service,
 	}
+}
+
+// getAccountID 从 Gin Context 安全获取当前用户 ID（带类型断言防护）
+func getAccountID(c *gin.Context) (uint, bool) {
+	val, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.FailAuth(c, "未登录")
+		return 0, false
+	}
+	uid, ok := val.(uint)
+	if !ok {
+		apierror.FailAuth(c, "用户信息异常")
+		return 0, false
+	}
+	return uid, true
+}
+
+// getUsername 从 Gin Context 安全获取当前用户名（带类型断言防护）
+func getUsername(c *gin.Context) (string, bool) {
+	val, exists := c.Get("username")
+	if !exists {
+		apierror.FailAuth(c, "未登录")
+		return "", false
+	}
+	name, ok := val.(string)
+	if !ok {
+		apierror.FailAuth(c, "用户信息异常")
+		return "", false
+	}
+	return name, true
 }
 
 // Publish 处理 POST /video/publish（需要 JWT）
@@ -34,11 +66,13 @@ func (h *Handler) Publish(c *gin.Context) {
 		return
 	}
 
-	// 从 JWT Context 获取当前用户 ID
-	authorID, _ := c.Get(jwt.AccountIDKey)
-	authorIDUint := authorID.(uint)
+	// 从 JWT Context 安全获取当前用户 ID
+	authorID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
 
-	video, err := h.service.Publish(&req, authorIDUint)
+	video, err := h.service.Publish(&req, authorID)
 	if err != nil {
 		apierror.FailServer(c, err.Error())
 		return
@@ -57,60 +91,32 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// 检查文件大小（限制100MB）
+	// 使用公共上传工具保存文件（限制100MB）
 	const maxSize = 100 * 1024 * 1024 // 100MB
-	if header.Size > maxSize {
-		apierror.FailParam(c, fmt.Sprintf("文件大小不能超过100MB，当前文件大小: %.2fMB", float64(header.Size)/(1024*1024)))
-		return
-	}
-
-	// 生成唯一文件名：时间戳_原始文件名
-	filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
-	savePath := filepath.Join("uploads", filename)
-
-	// 确保 uploads 目录存在
-	os.MkdirAll("uploads", os.ModePerm)
-
-	// 创建目标文件
-	out, err := os.Create(savePath)
+	savePath, playURL, err := storage.SaveUploadFile(file, header.Filename, storage.VideoExts, maxSize)
 	if err != nil {
-		apierror.FailServer(c, "保存文件失败")
-		return
-	}
-	defer out.Close()
-
-	// 复制文件内容
-	written, err := io.Copy(out, file)
-	if err != nil {
-		apierror.FailServer(c, fmt.Sprintf("写入文件失败: %v", err))
+		apierror.FailParam(c, err.Error())
 		return
 	}
 
-	// 记录日志
-	fmt.Printf("视频上传成功: %s (大小: %.2fMB)\n", filename, float64(written)/(1024*1024))
-
-	// 返回可访问的 URL
-	playURL := fmt.Sprintf("/static/%s", filename)
+	log.Printf("视频上传成功: %s", playURL)
 
 	// 自动生成封面
 	coverURL := ""
-	if isVideoFile(filename) {
-		fmt.Printf("检测到视频文件，开始生成封面...\n")
-		coverFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + ".jpg"
-		coverPath := filepath.Join("uploads", coverFilename)
+	if isVideoFile(header.Filename) {
+		log.Printf("检测到视频文件，开始生成封面...\n")
+		coverFilename := strings.TrimSuffix(filepath.Base(savePath), filepath.Ext(savePath)) + ".jpg"
+		coverPath := filepath.Join(config.C.Storage.UploadDir, coverFilename)
 
-		// 尝试生成封面
 		if generateCover(savePath, coverPath) {
-			coverURL = fmt.Sprintf("/static/%s", coverFilename)
-			fmt.Printf("✅ 封面生成成功: %s\n", coverFilename)
+			coverURL = fmt.Sprintf("%s/%s", config.C.Storage.StaticPath, coverFilename)
+			log.Printf("封面生成成功: %s\n", coverFilename)
 		} else {
-			fmt.Printf("❌ 封面生成失败，将使用空封面\n")
+			log.Printf("封面生成失败，将使用空封面\n")
 		}
-	} else {
-		fmt.Printf("非视频文件，跳过封面生成\n")
 	}
 
-	fmt.Printf("返回数据 - play_url: %s, cover_url: %s\n", playURL, coverURL)
+	log.Printf("返回数据 - play_url: %s, cover_url: %s\n", playURL, coverURL)
 
 	apierror.OK(c, gin.H{
 		"play_url":  playURL,
@@ -119,36 +125,38 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 }
 
 // generateCover 使用 FFmpeg 从视频生成封面
+// FFmpeg 路径从 config.C.Storage.FFmpegPath 读取，支持绝对路径或 PATH 中的 "ffmpeg"
 func generateCover(videoPath, coverPath string) bool {
-	// FFmpeg 绝对路径
-	ffmpegPath := `E:\ffmpeg\ffmpeg-8.1.1-essentials_build\bin\ffmpeg.exe`
+	ffmpegPath := config.C.Storage.FFmpegPath
 
-	// 检查 FFmpeg 是否存在
-	if _, err := os.Stat(ffmpegPath); os.IsNotExist(err) {
-		fmt.Printf("[FFmpeg] FFmpeg 不存在: %s\n", ffmpegPath)
-		return false
+	// 如果是相对路径（如 "ffmpeg"），依赖系统 PATH 查找；否则检查文件是否存在
+	if filepath.IsAbs(ffmpegPath) {
+		if _, err := os.Stat(ffmpegPath); os.IsNotExist(err) {
+			log.Printf("[FFmpeg] 可执行文件不存在: %s\n", ffmpegPath)
+			return false
+		}
 	}
 
 	// 提取视频第一帧作为封面
-	fmt.Printf("[FFmpeg] 执行命令: %s -i %s -vframes 1 -q:v 2 %s\n", ffmpegPath, videoPath, coverPath)
+	log.Printf("[FFmpeg] 执行命令: %s -i %s -vframes 1 -q:v 2 %s\n", ffmpegPath, videoPath, coverPath)
 	cmd := exec.Command(ffmpegPath, "-i", videoPath, "-vframes", "1", "-q:v", "2", coverPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[FFmpeg] 执行失败: %v\n", err)
-		fmt.Printf("[FFmpeg] 错误输出: %s\n", string(output))
+		log.Printf("[FFmpeg] 执行失败: %v\n", err)
+		log.Printf("[FFmpeg] 错误输出: %s\n", string(output))
 		return false
 	}
 
 	// 检查封面文件是否生成
 	if _, err := os.Stat(coverPath); os.IsNotExist(err) {
-		fmt.Printf("[FFmpeg] 封面文件不存在: %s\n", coverPath)
+		log.Printf("[FFmpeg] 封面文件不存在: %s\n", coverPath)
 		return false
 	}
 
 	// 获取文件大小
 	info, err := os.Stat(coverPath)
 	if err == nil {
-		fmt.Printf("[FFmpeg] 封面文件大小: %.2fKB\n", float64(info.Size())/1024)
+		log.Printf("[FFmpeg] 封面文件大小: %.2fKB\n", float64(info.Size())/1024)
 	}
 
 	return true
@@ -174,13 +182,13 @@ func (h *Handler) ListByAuthor(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.ListByAuthor(req.AuthorID)
+	resp, err := h.service.ListByAuthor(&req)
 	if err != nil {
 		apierror.FailServer(c, "查询失败")
 		return
 	}
 
-	apierror.OK(c, items)
+	apierror.OK(c, resp)
 }
 
 // ==================== 点赞 Handler ====================
@@ -193,10 +201,12 @@ func (h *Handler) Like(c *gin.Context) {
 		return
 	}
 
-	accountID, _ := c.Get(jwt.AccountIDKey)
-	accountIDUint := accountID.(uint)
+	accountID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
 
-	if err := h.service.Like(req.VideoID, accountIDUint); err != nil { // 调用 Service，执行业务逻辑
+	if err := h.service.Like(req.VideoID, accountID); err != nil { // 调用 Service，执行业务逻辑
 		apierror.FailServer(c, err.Error()) // 返回错误响应
 		return
 	}
@@ -212,10 +222,12 @@ func (h *Handler) Unlike(c *gin.Context) {
 		return
 	}
 
-	accountID, _ := c.Get(jwt.AccountIDKey)
-	accountIDUint := accountID.(uint)
+	accountID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
 
-	if err := h.service.Unlike(req.VideoID, accountIDUint); err != nil {
+	if err := h.service.Unlike(req.VideoID, accountID); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}
@@ -231,14 +243,13 @@ func (h *Handler) IsLiked(c *gin.Context) {
 		return
 	}
 
-	accountID, exists := c.Get(jwt.AccountIDKey)
-	if !exists {
+	accountID, ok := getAccountID(c)
+	if !ok {
 		apierror.OK(c, IsLikedResponse{IsLiked: false})
 		return
 	}
-	accountIDUint := accountID.(uint)
 
-	isLiked, err := h.service.IsLiked(req.VideoID, accountIDUint)
+	isLiked, err := h.service.IsLiked(req.VideoID, accountID)
 	if err != nil {
 		apierror.FailServer(c, "查询失败")
 		return
@@ -257,14 +268,18 @@ func (h *Handler) PublishComment(c *gin.Context) {
 		return
 	}
 
-	accountID, _ := c.Get(jwt.AccountIDKey)
-	accountIDUint := accountID.(uint)
-	username, _ := c.Get("username")
-	usernameStr := username.(string)
+	accountID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
+	usernameStr, ok := getUsername(c)
+	if !ok {
+		return
+	}
 
-	comment, err := h.service.PublishComment(&req, accountIDUint, usernameStr)
+	comment, err := h.service.PublishComment(&req, accountID, usernameStr)
 	if err != nil {
-		if err == ErrVideoNotFound {
+		if errors.Is(err, ErrVideoNotFound) {
 			apierror.FailParam(c, "视频不存在")
 			return
 		}
@@ -283,13 +298,13 @@ func (h *Handler) ListComments(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.ListComments(req.VideoID)
+	resp, err := h.service.ListComments(&req)
 	if err != nil {
 		apierror.FailServer(c, "查询失败")
 		return
 	}
 
-	apierror.OK(c, items)
+	apierror.OK(c, resp)
 }
 
 // GetDetail 处理 POST /video/getDetail
@@ -388,11 +403,13 @@ func (h *Handler) DeleteVideo(c *gin.Context) {
 		return
 	}
 
-	accountID, _ := c.Get(jwt.AccountIDKey)
-	accountIDUint := accountID.(uint)
+	accountID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
 
-	if err := h.service.DeleteVideo(req.VideoID, accountIDUint); err != nil {
-		if err == ErrVideoNotFound {
+	if err := h.service.DeleteVideo(req.VideoID, accountID); err != nil {
+		if errors.Is(err, ErrVideoNotFound) {
 			apierror.FailParam(c, "视频不存在")
 			return
 		}
@@ -418,10 +435,12 @@ func (h *Handler) DeleteVideosBatch(c *gin.Context) {
 		return
 	}
 
-	accountID, _ := c.Get(jwt.AccountIDKey)
-	accountIDUint := accountID.(uint)
+	accountID, ok := getAccountID(c)
+	if !ok {
+		return
+	}
 
-	if err := h.service.DeleteVideosBatch(req.VideoIDs, accountIDUint); err != nil {
+	if err := h.service.DeleteVideosBatch(req.VideoIDs, accountID); err != nil {
 		apierror.FailServer(c, err.Error())
 		return
 	}
@@ -439,43 +458,14 @@ func (h *Handler) UploadCover(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// 检查文件类型
-	if !isImageFile(header.Filename) {
-		apierror.FailParam(c, "请上传图片文件")
-		return
-	}
-
-	// 检查文件大小（限制10MB）
+	// 使用公共上传工具保存文件（限制10MB）
 	const maxSize = 10 * 1024 * 1024 // 10MB
-	if header.Size > maxSize {
-		apierror.FailParam(c, fmt.Sprintf("图片大小不能超过10MB，当前文件大小: %.2fMB", float64(header.Size)/(1024*1024)))
-		return
-	}
-
-	// 生成唯一文件名
-	filename := fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
-	savePath := filepath.Join("uploads", filename)
-
-	// 确保 uploads 目录存在
-	os.MkdirAll("uploads", os.ModePerm)
-
-	// 创建目标文件
-	out, err := os.Create(savePath)
+	_, coverURL, err := storage.SaveUploadFile(file, header.Filename, storage.ImageExts, maxSize)
 	if err != nil {
-		apierror.FailServer(c, "保存文件失败")
-		return
-	}
-	defer out.Close()
-
-	// 复制文件内容
-	_, err = io.Copy(out, file)
-	if err != nil {
-		apierror.FailServer(c, fmt.Sprintf("写入文件失败: %v", err))
+		apierror.FailParam(c, err.Error())
 		return
 	}
 
-	// 返回可访问的 URL
-	coverURL := fmt.Sprintf("/static/%s", filename)
 	apierror.OK(c, gin.H{"url": coverURL})
 }
 

@@ -1,21 +1,24 @@
 import { postJson } from './client'
+import type { VloggerItem } from './types'
 
 /**
- * 关注用户请求参数
- * @param vloggerId 要关注的用户id
- * @returns 关注结果
+ * 关注列表分页响应
  */
-export interface FollowRequest {
-    vlogger_id: number
+export interface GetVloggersResponse {
+  list: VloggerItem[]
+  total: number
+  page: number
+  size: number
+  has_more: boolean
 }
 
 /**
- * 取消关注请求参数
- * @param vloggerId 要取消关注的用户id
- * @returns 取消关注结果
+ * 获取关注列表（当前用户关注的人，含资料统计）
+ * @param page 页码，默认 1
+ * @param size 每页条数，默认 20
  */
-export interface UnfollowRequest {
-    vlogger_id: number
+export async function getVloggers(page: number = 1, size: number = 50): Promise<GetVloggersResponse> {
+    return await postJson('/social/getAllVloggers', { page, page_size: size })
 }
 
 /**

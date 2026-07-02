@@ -4,12 +4,7 @@ import (
 	"errors"
 	"feedSystem_video/internal/apierror"
 	"feedSystem_video/internal/middleware/jwt"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
+	"feedSystem_video/internal/middleware/storage"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,18 +21,31 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
+// getAccountID 从 Gin Context 安全获取当前用户 ID（带类型断言防护）
+func getAccountID(c *gin.Context) (uint, bool) {
+	val, exists := c.Get(jwt.AccountIDKey)
+	if !exists {
+		apierror.FailAuth(c, "未登录")
+		return 0, false
+	}
+	uid, ok := val.(uint)
+	if !ok {
+		apierror.FailAuth(c, "用户信息异常")
+		return 0, false
+	}
+	return uid, true
+}
+
 func (h *Handler) Register(c *gin.Context) {
 	// 解析请求参数
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// 校验失败（比如用户名为空、密码太短）
 		apierror.FailParam(c, err.Error())
 		return
 	}
 	// 调用 Service，执行业务逻辑
 	resp, err := h.service.Register(&req)
 	if err != nil {
-		//3.根据错误类型返回不同的 HTTP 响应
 		if errors.Is(err, ErrUserAlreadyExists) {
 			apierror.FailParam(c, "用户名已存在")
 			return
@@ -61,8 +69,9 @@ func (h *Handler) Login(c *gin.Context) {
 
 	resp, err := h.service.Login(&req)
 	if err != nil {
-		if errors.Is(err, ErrUserNotFound) || err.Error() == "密码错误" {
-			apierror.FailParam(c, "用户名或密码错误") // 不告诉用户是用户名错还是密码错（安全）
+		// 用户不存在或密码错误，统一返回"用户名或密码错误"（安全考量）
+		if errors.Is(err, ErrUserNotFound) || errors.Is(err, ErrPasswordWrong) {
+			apierror.FailParam(c, "用户名或密码错误")
 			return
 		}
 		apierror.FailServer(c, "登录失败")
@@ -74,7 +83,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 // GetProfile 处理 POST /account/getProfile
 func (h *Handler) GetProfile(c *gin.Context) {
-	var req GetProfileRequest // 从 JWT 获取当前用户 ID
+	var req GetProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
@@ -98,52 +107,21 @@ func (h *Handler) UploadAvatar(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// 检查文件类型
-	ext := filepath.Ext(header.Filename)
-	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
-	if !allowedExts[strings.ToLower(ext)] {
-		apierror.FailParam(c, "只支持 JPG、PNG、GIF、WebP 格式的图片")
-		return
-	}
-
-	// 检查文件大小（限制10MB）
+	// 使用公共上传工具保存文件
 	const maxSize = 10 * 1024 * 1024 // 10MB
-	if header.Size > maxSize {
-		apierror.FailParam(c, "图片大小不能超过10MB")
-		return
-	}
-
-	// 生成唯一文件名
-	filename := fmt.Sprintf("%d_%s%s", time.Now().Unix(), "avatar", ext)
-	savePath := filepath.Join("uploads", filename)
-
-	// 确保 uploads 目录存在
-	os.MkdirAll("uploads", os.ModePerm)
-
-	// 创建目标文件
-	out, err := os.Create(savePath)
+	_, avatarURL, err := storage.SaveUploadFile(file, header.Filename, storage.ImageExts, maxSize)
 	if err != nil {
-		apierror.FailServer(c, "保存文件失败")
-		return
-	}
-	defer out.Close()
-
-	// 复制文件内容
-	if _, err := io.Copy(out, file); err != nil {
-		apierror.FailServer(c, "写入文件失败")
+		apierror.FailParam(c, err.Error())
 		return
 	}
 
-	// 获取当前用户ID
-	accountID, exists := c.Get(jwt.AccountIDKey)
-	if !exists {
-		apierror.FailServer(c, "未登录")
+	// 获取当前用户ID（带类型断言防护）
+	userID, ok := getAccountID(c)
+	if !ok {
 		return
 	}
-	userID := accountID.(uint)
 
 	// 更新数据库中的头像URL
-	avatarURL := fmt.Sprintf("/static/%s", filename)
 	if err := h.service.UpdateAvatar(userID, avatarURL); err != nil {
 		apierror.FailServer(c, err.Error())
 		return
@@ -160,16 +138,13 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
-	accountID, exists := c.Get(jwt.AccountIDKey)
-	if !exists {
-		apierror.FailServer(c, "未登录")
+	userID, ok := getAccountID(c)
+	if !ok {
 		return
 	}
-	userID := accountID.(uint)
 
 	if err := h.service.ChangePassword(userID, req.OldPassword, req.NewPassword); err != nil {
-		if err.Error() == "原密码错误" {
+		if errors.Is(err, ErrOldPasswordWrong) {
 			apierror.FailParam(c, "原密码错误")
 			return
 		}
@@ -188,15 +163,16 @@ func (h *Handler) UpdateBio(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
-	accountID, exists := c.Get(jwt.AccountIDKey)
-	if !exists {
-		apierror.FailServer(c, "未登录")
+	userID, ok := getAccountID(c)
+	if !ok {
 		return
 	}
-	userID := accountID.(uint)
 
 	if err := h.service.UpdateBio(userID, req.Bio); err != nil {
+		if errors.Is(err, ErrBioTooLong) {
+			apierror.FailParam(c, err.Error())
+			return
+		}
 		apierror.FailServer(c, err.Error())
 		return
 	}

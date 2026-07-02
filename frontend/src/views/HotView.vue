@@ -32,6 +32,8 @@
               {{ formatNumber(video.play_count) }}
               <el-icon style="margin-left: 12px;"><Star /></el-icon>
               {{ formatNumber(video.likes_count) }}
+              <el-icon style="margin-left: 12px;"><ChatDotRound /></el-icon>
+              {{ formatNumber(video.comments_count || 0) }}
             </span>
           </div>
           <div class="time-row">
@@ -51,37 +53,14 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading, VideoCamera, VideoPlay, Star, Calendar } from '@element-plus/icons-vue'
+import { Loading, VideoCamera, VideoPlay, Star, Calendar, ChatDotRound } from '@element-plus/icons-vue'
 import { listHotVideos } from '../api/video'
 import type { VideoItem } from '../api/types'
+import { formatDate, formatNumber } from '../composables/useFormat'
 
 const router = useRouter()
 const loading = ref(false)
 const hotVideos = ref<VideoItem[]>([])
-
-function formatNumber(num: number): string {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
-  }
-  return num.toString()
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-
-  return date.toLocaleDateString('zh-CN')
-}
 
 function formatPublishDate(dateStr: string): string {
   if (!dateStr) return ''

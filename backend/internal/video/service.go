@@ -1,12 +1,9 @@
 package video
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"feedSystem_video/internal/account"
-	"feedSystem_video/internal/middleware/rabbitmq"
-	"feedSystem_video/internal/middleware/redis"
+	"feedSystem_video/internal/middleware/feedcache"
 	"fmt"
 	"log"
 )
@@ -53,41 +50,40 @@ func (s *Service) Publish(req *PublishRequest, authorID uint) (*Video, error) {
 		return nil, fmt.Errorf("创建视频失败: %w", err)
 	}
 
-	_ = redis.Del(context.Background(), "v1:feed:latest:all")
+	// 失效 Feed 缓存（通过 feedcache 包统一管理 key，避免硬编码不同步）
+	feedcache.InvalidateLatestCache()
 
 	return video, nil
 }
 
-// ListByAuthor 按作者查询视频列表
-func (s *Service) ListByAuthor(authorID uint) ([]VideoItem, error) {
-	videos, err := s.repo.ListByAuthorID(authorID)
+// ListByAuthor 按作者查询视频列表（带分页）
+func (s *Service) ListByAuthor(req *ListByAuthorRequest) (*ListByAuthorResponse, error) {
+	page, size := normalizePaging(req.Page, req.Size)
+
+	videos, total, err := s.repo.ListByAuthorID(req.AuthorID, page, size)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]VideoItem, len(videos))
-	for i, v := range videos {
-		items[i] = VideoItem{
-			ID:            v.ID,
-			AuthorID:      v.AuthorID,
-			Username:      v.Username,
-			Title:         v.Title,
-			Description:   v.Description,
-			PublishDate:   v.PublishDate,
-			PlayURL:       v.PlayURL,
-			CoverURL:      v.CoverURL,
-			LikesCount:    v.LikesCount,
-			PlayCount:     v.PlayCount,
-			CommentsCount: v.CommentsCount,
-			CreatedAt:     v.CreatedAt,
-		}
+	items := make([]VideoItem, 0, len(videos))
+	for _, v := range videos {
+		items = append(items, VideoToItem(&v))
 	}
-	return items, nil
+
+	hasMore := int64(page*size) < total
+
+	return &ListByAuthorResponse{
+		List:    items,
+		Total:   total,
+		Page:    page,
+		Size:    size,
+		HasMore: hasMore,
+	}, nil
 }
 
 // ==================== 点赞 ====================
 
-// Like 点赞（发 MQ 异步处理）
+// Like 点赞（同步事务写库，保证数据立即持久化）
 func (s *Service) Like(videoID, accountID uint) error {
 	// 检查是否已赞
 	isLiked, err := s.repo.IsLiked(videoID, accountID)
@@ -98,21 +94,15 @@ func (s *Service) Like(videoID, accountID uint) error {
 		return errors.New("已经点赞过了")
 	}
 
-	// 发 MQ 消息（异步）
-	event := rabbitmq.LikeEvent{VideoID: videoID, AccountID: accountID}
-	eventJSON, _ := json.Marshal(event)
-
-	err = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyLike, string(eventJSON))
-	if err != nil {
-		// MQ 发送失败，降级为同步写库
-		log.Printf("[Like] MQ 发送失败，降级同步写库: %v", err)
-		return s.repo.CreateLike(videoID, accountID)
+	// 同步事务写库：创建点赞记录 + 增加计数，保证原子性和即时一致性
+	if err := s.repo.CreateLikeTx(videoID, accountID); err != nil {
+		return fmt.Errorf("点赞失败: %w", err)
 	}
 
 	return nil
 }
 
-// Unlike 取消点赞（发 MQ 异步处理）
+// Unlike 取消点赞（同步事务写库，保证数据立即持久化）
 func (s *Service) Unlike(videoID, accountID uint) error {
 	isLiked, err := s.repo.IsLiked(videoID, accountID)
 	if err != nil {
@@ -122,13 +112,9 @@ func (s *Service) Unlike(videoID, accountID uint) error {
 		return errors.New("还没有点赞")
 	}
 
-	event := rabbitmq.LikeEvent{VideoID: videoID, AccountID: accountID}
-	eventJSON, _ := json.Marshal(event)
-
-	err = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyUnlike, string(eventJSON))
-	if err != nil {
-		log.Printf("[Unlike] MQ 发送失败，降级同步写库: %v", err)
-		return s.repo.DeleteLike(videoID, accountID)
+	// 同步事务写库：删除点赞记录 + 减少计数，保证原子性和即时一致性
+	if err := s.repo.DeleteLikeTx(videoID, accountID); err != nil {
+		return fmt.Errorf("取消点赞失败: %w", err)
 	}
 
 	return nil
@@ -153,39 +139,48 @@ func (s *Service) PublishComment(req *PublishCommentRequest, accountID uint, use
 	}
 
 	comment := &Comment{
-		VideoID:   req.VideoID, // 视频ID
-		AccountID: accountID,   // 用户ID
-		Username:  username,    // 用户名
-		Content:   req.Content, // 评论内容
+		VideoID:   req.VideoID,
+		AccountID: accountID,
+		Username:  username,
+		Content:   req.Content,
 	}
 
-	if err := s.repo.CreateComment(comment); err != nil {
+	// 使用事务创建评论并增加计数（保证原子性）
+	if err := s.repo.CreateCommentTx(comment); err != nil {
 		return nil, err
 	}
 
-	// 增加视频评论数
-	_ = s.repo.IncrementCommentsCount(req.VideoID)
+	// 查询评论者头像，填充到返回结果中
+	if author, err := s.accountRepo.FindByID(accountID); err == nil && author != nil {
+		comment.AvatarURL = author.AvatarURL
+	}
 
 	return comment, nil
 }
 
-// ListComments 查询评论列表
-func (s *Service) ListComments(videoID uint) ([]CommentItem, error) {
-	comments, err := s.repo.ListCommentsByVideoID(videoID)
+// ListComments 查询评论列表（带分页）
+func (s *Service) ListComments(req *ListCommentsRequest) (*ListCommentsResponse, error) {
+	page, size := normalizePaging(req.Page, req.Size)
+
+	comments, total, err := s.repo.ListCommentsByVideoID(req.VideoID, page, size)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]CommentItem, len(comments))
-	for i, c := range comments {
-		items[i] = CommentItem{
-			ID:        c.ID,
-			Username:  c.Username,
-			Content:   c.Content,   // 评论内容
-			CreatedAt: c.CreatedAt, // 创建时间
-		}
+	items := make([]CommentItem, 0, len(comments))
+	for _, c := range comments {
+		items = append(items, CommentToItem(&c))
 	}
-	return items, nil
+
+	hasMore := int64(page*size) < total
+
+	return &ListCommentsResponse{
+		List:    items,
+		Total:   total,
+		Page:    page,
+		Size:    size,
+		HasMore: hasMore,
+	}, nil
 }
 
 // RecordPlay 记录视频播放
@@ -201,22 +196,9 @@ func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
 		return nil, err
 	}
 
-	items := make([]VideoItem, len(videos))
-	for i, v := range videos {
-		items[i] = VideoItem{
-			ID:            v.ID,
-			AuthorID:      v.AuthorID,
-			Username:      v.Username,
-			Title:         v.Title,
-			Description:   v.Description,
-			PublishDate:   v.PublishDate,
-			PlayURL:       v.PlayURL,
-			CoverURL:      v.CoverURL,
-			LikesCount:    v.LikesCount,
-			PlayCount:     v.PlayCount,
-			CommentsCount: v.CommentsCount,
-			CreatedAt:     v.CreatedAt,
-		}
+	items := make([]VideoItem, 0, len(videos))
+	for _, v := range videos {
+		items = append(items, VideoToItem(&v))
 	}
 	log.Printf("[ListHotVideos] 查询成功，返回 %d 条记录", len(items))
 	return items, nil
@@ -228,28 +210,17 @@ func (s *Service) SearchVideos(keyword string, page, size int) (*SearchVideosRes
 		return nil, errors.New("搜索关键词不能为空")
 	}
 
+	page, size = normalizePaging(page, size)
+
 	videos, total, err := s.repo.SearchVideos(keyword, page, size)
 	if err != nil {
 		log.Printf("[SearchVideos] 搜索失败: %v", err)
 		return nil, err
 	}
 
-	items := make([]VideoItem, len(videos))
-	for i, v := range videos {
-		items[i] = VideoItem{
-			ID:            v.ID,
-			AuthorID:      v.AuthorID,
-			Username:      v.Username,
-			Title:         v.Title,
-			Description:   v.Description,
-			PublishDate:   v.PublishDate,
-			PlayURL:       v.PlayURL,
-			CoverURL:      v.CoverURL,
-			LikesCount:    v.LikesCount,
-			PlayCount:     v.PlayCount,
-			CommentsCount: v.CommentsCount,
-			CreatedAt:     v.CreatedAt,
-		}
+	items := make([]VideoItem, 0, len(videos))
+	for _, v := range videos {
+		items = append(items, VideoToItem(&v))
 	}
 
 	hasMore := int64(page*size) < total
@@ -280,7 +251,8 @@ func (s *Service) DeleteVideo(videoID uint, authorID uint) error {
 		return fmt.Errorf("删除视频失败: %w", err)
 	}
 
-	_ = redis.Del(context.Background(), "v1:feed:latest:all")
+	// 失效 Feed 缓存
+	feedcache.InvalidateLatestCache()
 
 	return nil
 }
@@ -295,7 +267,23 @@ func (s *Service) DeleteVideosBatch(videoIDs []uint, authorID uint) error {
 		return fmt.Errorf("批量删除视频失败: %w", err)
 	}
 
-	_ = redis.Del(context.Background(), "v1:feed:latest:all")
+	// 失效 Feed 缓存
+	feedcache.InvalidateLatestCache()
 
 	return nil
+}
+
+// normalizePaging 规范化分页参数
+// page 从 1 开始，size 默认 10，最大 50
+func normalizePaging(page, size int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 10
+	}
+	if size > 50 {
+		size = 50
+	}
+	return page, size
 }

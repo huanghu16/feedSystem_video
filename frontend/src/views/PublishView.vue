@@ -1,4 +1,4 @@
-<<template>
+<template>
   <div class="publish-page">
     <div class="header-info">
       <h2>📤 发布视频</h2>

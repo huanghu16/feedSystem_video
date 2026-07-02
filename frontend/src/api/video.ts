@@ -23,17 +23,13 @@ export function uploadCover(file: File) {
   return postForm<{ url: string }>('/video/uploadCover', formData)
 }
 
-/** 
+/**
  * 发布视频
- * @param title 视频标题
- * @param playUrl 视频播放地址
- * @param coverUrl 视频封面地址
- * @return VideoItem 发布成功后返回的视频信息 
-*/
+ */
 export function publishVideo(title: string, playUrl: string, coverUrl: string, description?: string, publishDate?: string) {
-  return postJson<VideoItem>('/video/publish', { 
-    title, 
-    play_url: playUrl, 
+  return postJson<VideoItem>('/video/publish', {
+    title,
+    play_url: playUrl,
     cover_url: coverUrl,
     description: description || '',
     publish_date: publishDate || ''
@@ -41,17 +37,29 @@ export function publishVideo(title: string, playUrl: string, coverUrl: string, d
 }
 
 /**
- * 获取作者的视频列表
- * @param authorId 作者id
- * @return VideoItem[] 视频列表
+ * 获取作者的视频列表（带分页）
  */
-export function listByAuthor(authorId: number) {
-  return postJson<VideoItem[]>('/video/listByAuthorID', { author_id: authorId })
+export interface ListByAuthorResponse {
+  list: VideoItem[]
+  total: number
+  page: number
+  size: number
+  has_more: boolean
+}
+
+export function listByAuthor(authorId: number, page: number = 1, size: number = 12) {
+  return postJson<ListByAuthorResponse>('/video/listByAuthorID', { author_id: authorId, page, size })
+}
+
+/**
+ * 获取视频详情
+ */
+export function getDetail(videoId: number) {
+  return postJson<VideoItem>('/video/getDetail', { id: videoId })
 }
 
 /**
  * 记录视频播放
- * @param videoId 视频id
  */
 export function recordPlay(videoId: number) {
   return postJson<void>('/video/recordPlay', { video_id: videoId })
@@ -59,17 +67,13 @@ export function recordPlay(videoId: number) {
 
 /**
  * 获取热门视频列表（按播放量排序）
- * @param limit 返回数量，默认10
  */
 export function listHotVideos(limit: number = 10) {
   return postJson<VideoItem[]>('/video/listHot', { limit })
 }
 
 /**
- * 搜索视频
- * @param keyword 搜索关键词
- * @param page 页码，默认1
- * @param size 每页数量，默认10
+ * 搜索视频（带分页）
  */
 export interface SearchVideosResponse {
   list: VideoItem[]
@@ -80,16 +84,11 @@ export interface SearchVideosResponse {
 }
 
 export function searchVideos(keyword: string, page: number = 1, size: number = 10) {
-  return postJson<SearchVideosResponse>('/video/search', { 
-    keyword, 
-    page, 
-    size 
-  })
+  return postJson<SearchVideosResponse>('/video/search', { keyword, page, size })
 }
 
 /**
  * 删除视频
- * @param videoId 视频id
  */
 export function deleteVideo(videoId: number) {
   return postJson<void>('/video/delete', { video_id: videoId })
@@ -97,7 +96,6 @@ export function deleteVideo(videoId: number) {
 
 /**
  * 批量删除视频
- * @param videoIds 视频id列表
  */
 export function deleteVideosBatch(videoIds: number[]) {
   return postJson<void>('/video/deleteBatch', { video_ids: videoIds })
