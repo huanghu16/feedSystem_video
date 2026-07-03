@@ -4,6 +4,7 @@ import (
 	"errors"
 	"feedSystem_video/internal/account"
 	"feedSystem_video/internal/middleware/feedcache"
+	"feedSystem_video/internal/middleware/rabbitmq"
 	"fmt"
 	"log"
 )
@@ -99,6 +100,11 @@ func (s *Service) Like(videoID, accountID uint) error {
 		return fmt.Errorf("点赞失败: %w", err)
 	}
 
+	// 发 MQ 事件，通知消费者异步处理（不影响主流程）
+	_ = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyLike, rabbitmq.LikeEvent{
+		VideoID: videoID, AccountID: accountID,
+	})
+
 	return nil
 }
 
@@ -116,6 +122,11 @@ func (s *Service) Unlike(videoID, accountID uint) error {
 	if err := s.repo.DeleteLikeTx(videoID, accountID); err != nil {
 		return fmt.Errorf("取消点赞失败: %w", err)
 	}
+
+	// 发 MQ 事件，通知消费者异步处理
+	_ = rabbitmq.Publish(rabbitmq.ExchangeLike, rabbitmq.RoutingKeyUnlike, rabbitmq.LikeEvent{
+		VideoID: videoID, AccountID: accountID,
+	})
 
 	return nil
 }
@@ -154,6 +165,11 @@ func (s *Service) PublishComment(req *PublishCommentRequest, accountID uint, use
 	if author, err := s.accountRepo.FindByID(accountID); err == nil && author != nil {
 		comment.AvatarURL = author.AvatarURL
 	}
+
+	// 发 MQ 事件，通知消费者异步处理
+	_ = rabbitmq.Publish(rabbitmq.ExchangeComment, rabbitmq.RoutingKeyComment, rabbitmq.CommentEvent{
+		VideoID: req.VideoID, AccountID: accountID, Username: username, Content: req.Content,
+	})
 
 	return comment, nil
 }

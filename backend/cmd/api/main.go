@@ -8,8 +8,10 @@ import (
 	httpHandler "feedSystem_video/internal/http"
 	"feedSystem_video/internal/middleware/rabbitmq"
 	"feedSystem_video/internal/middleware/redis"
+	"feedSystem_video/internal/notification"
 	"feedSystem_video/internal/social"
 	"feedSystem_video/internal/video"
+	"feedSystem_video/internal/worker"
 	"fmt"
 	"log"
 	"net/http"
@@ -31,14 +33,23 @@ func main() {
 	// 初始化RabbitMQ 连接（失败不阻塞，降级运行）
 	rabbitmq.Init()
 
+	// 启动通知事件消费者（MQ 未连接时自动跳过）
+	if rabbitmq.IsConnected() {
+		go worker.StartNotificationWorker()
+	}
+
 	//自动建表
-	db.DB.AutoMigrate(
+	if err := db.DB.AutoMigrate(
 		&account.Account{},
 		&video.Video{},
 		&video.Like{},
 		&video.Comment{},
 		&social.Social{},
-	)
+		&notification.Notification{},
+	); err != nil {
+		log.Fatalf("[DB] AutoMigrate 失败: %v", err)
+	}
+	log.Println("[DB] AutoMigrate 成功，所有表已创建/更新")
 
 	r := httpHandler.SetupRouter()
 

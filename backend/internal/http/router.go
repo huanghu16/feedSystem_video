@@ -8,6 +8,7 @@ import (
 	cors "feedSystem_video/internal/middleware/cors"
 	"feedSystem_video/internal/middleware/jwt"
 	"feedSystem_video/internal/middleware/ratelimit"
+	"feedSystem_video/internal/notification"
 	"feedSystem_video/internal/social" //新增
 	"feedSystem_video/internal/video"
 
@@ -122,6 +123,17 @@ func SetupRouter() *gin.Engine {
 	feedGroup := r.Group("/feed")
 	{
 		feedGroup.POST("/listLatest", feedHandler.ListLatest)
+	}
+
+	// --- Notification 模块 ---
+	notifRepo := notification.NewRepo()
+	notifHandler := notification.NewHandler(notifRepo)
+
+	notifGroup := r.Group("/notification")
+	{
+		notifGroup.Use(jwt.JWTAuth())
+		notifGroup.POST("/unreadCount", notifHandler.UnreadCount)
+		notifGroup.POST("/list", notifHandler.List)
 	}
 
 	return r

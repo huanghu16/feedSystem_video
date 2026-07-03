@@ -12,7 +12,7 @@ type Video struct {
 	AuthorID      uint           `gorm:"index;not null" json:"author_id"`
 	Username      string         `gorm:"type:varchar(64);not null" json:"username"`
 	Title         string         `gorm:"type:varchar(256);not null" json:"title"`
-	Description   string         `gorm:"type:text;default:''" json:"description"`
+	Description   string         `gorm:"type:text" json:"description"`
 	PublishDate   string         `gorm:"type:varchar(20);default:''" json:"publish_date"`
 	PlayURL       string         `gorm:"type:varchar(512);not null" json:"play_url"`
 	CoverURL      string         `gorm:"type:varchar(512);default:''" json:"cover_url"`

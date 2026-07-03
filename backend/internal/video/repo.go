@@ -2,6 +2,7 @@ package video
 
 import (
 	"feedSystem_video/internal/db"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -175,29 +176,52 @@ func (r *Repo) CreateCommentTx(comment *Comment) error {
 }
 
 // ListCommentsByVideoID 分页查询视频的评论列表（按时间正序）
-// JOIN accounts 表获取评论者头像，消除 N+1 查询
+// JOIN accounts 表获取评论者最新头像，消除 N+1 查询
 // page 从 1 开始，size 为每页条数
 // 返回评论列表和总数
 func (r *Repo) ListCommentsByVideoID(videoID uint, page, size int) ([]Comment, int64, error) {
-	var comments []Comment
 	var total int64
-
-	// 先查总数
 	if err := db.DB.Model(&Comment{}).Where("video_id = ?", videoID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页查询，JOIN accounts 获取头像
+	// 用内部结构体接收 JOIN 结果（Comment.AvatarURL 标记了 gorm:"-"，Scan 无法填充）
+	type commentRow struct {
+		ID        uint      `gorm:"column:id"`
+		VideoID   uint      `gorm:"column:video_id"`
+		AccountID uint      `gorm:"column:account_id"`
+		Username  string    `gorm:"column:username"`
+		AvatarURL string    `gorm:"column:avatar_url"`
+		Content   string    `gorm:"column:content"`
+		CreatedAt time.Time `gorm:"column:created_at"`
+	}
+
+	var rows []commentRow
 	offset := (page - 1) * size
-	if err := db.DB.Table("comments").
-		Select("comments.id, comments.video_id, comments.account_id, comments.username, comments.content, comments.created_at, accounts.avatar_url AS avatar_url").
+	err := db.DB.Table("comments").
+		Select("comments.id, comments.video_id, comments.account_id, comments.username, comments.content, comments.created_at, accounts.avatar_url").
 		Joins("LEFT JOIN accounts ON accounts.id = comments.account_id").
 		Where("comments.video_id = ?", videoID).
 		Order("comments.created_at ASC").
 		Offset(offset).
 		Limit(size).
-		Scan(&comments).Error; err != nil {
+		Scan(&rows).Error
+	if err != nil {
 		return nil, 0, err
+	}
+
+	// 转换为 Comment 切片
+	comments := make([]Comment, len(rows))
+	for i, row := range rows {
+		comments[i] = Comment{
+			ID:        row.ID,
+			VideoID:   row.VideoID,
+			AccountID: row.AccountID,
+			Username:  row.Username,
+			AvatarURL: row.AvatarURL,
+			Content:   row.Content,
+			CreatedAt: row.CreatedAt,
+		}
 	}
 
 	return comments, total, nil
@@ -224,9 +248,9 @@ func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
 	var videos []Video
 	// 使用 MySQL 的时间函数计算热度分数
 	// 优化后的热度算法：热度 = play_count / ((时间差小时数 + 24) ^ 1.2)
-	// 调整说明：
-	// 1. 基数从 2 改为 24：给新视频一个合理的基础时间窗口（24小时）
-	// 2. 指数从 1.5 改为 1.2：让时间衰减更平缓，播放量权重更大
+	// 调整：
+	// 1. 基数从 2 改为 100：给新视频一个合理的基础时间窗口（100小时）
+	// 2. 指数从 1.5 改为 1.1：让时间衰减更平缓，播放量权重更大
 	// 这样既保留了时间衰减特性，又确保高播放量视频能排在前面
 	err := db.DB.Select(`*, 
 		COALESCE(play_count, 0) * 1.0 / 

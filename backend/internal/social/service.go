@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"feedSystem_video/internal/account"
+	"feedSystem_video/internal/middleware/rabbitmq"
 )
 
 // Service 关注业务逻辑
@@ -40,7 +41,16 @@ func (s *Service) Follow(followerID, vloggerID uint) error {
 		return ErrAlreadyFollowing
 	}
 
-	return s.repo.CreateFollow(followerID, vloggerID)
+	if err := s.repo.CreateFollow(followerID, vloggerID); err != nil {
+		return err
+	}
+
+	// 发 MQ 事件，通知消费者异步处理
+	_ = rabbitmq.Publish(rabbitmq.ExchangeSocial, rabbitmq.RoutingKeyFollow, rabbitmq.SocialEvent{
+		FollowerID: followerID, VloggerID: vloggerID,
+	})
+
+	return nil
 }
 
 // Unfollow 取消关注
