@@ -49,7 +49,7 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { login, register } from '../api/account'
+import { login, register, getProfile } from '../api/account'
 
 const router = useRouter()
 const route = useRoute()
@@ -71,6 +71,14 @@ async function handleSubmit() {
     } else {
       const res = await login(username.value, password.value)
       auth.setTokens(res.access_token, res.refresh_token)
+      // 登录后立即拉取用户资料，同步头像到侧边栏
+      try {
+        const claims = JSON.parse(atob(res.access_token.split('.')[1]))
+        const profile = await getProfile(claims.account_id)
+        if (profile.avatar_url) {
+          auth.setAvatar(profile.avatar_url)
+        }
+      } catch {}
       ElMessage.success('登录成功')
       const redirect = (route.query.redirect as string) || '/'
       router.push(redirect)

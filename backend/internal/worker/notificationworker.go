@@ -119,7 +119,7 @@ func processNotificationMessage(msg amqp.Delivery) bool {
 			ActorName:   actorName,
 			Type:        notification.TypeLike,
 			VideoID:     event.VideoID,
-			Content:     fmt.Sprintf("%s 赞了你的视频", actorName),
+			Content:     fmt.Sprintf("%s 赞了你的视频《%s》", actorName, v.Title),
 		}
 		if err := notifRepo.Create(n); err != nil {
 			log.Printf("[NotificationWorker] 写入点赞通知失败: %v", err)
@@ -158,7 +158,7 @@ func processNotificationMessage(msg amqp.Delivery) bool {
 			ActorName:   event.Username,
 			Type:        notification.TypeComment,
 			VideoID:     event.VideoID,
-			Content:     fmt.Sprintf("%s 评论了你的视频: %s", event.Username, content),
+			Content:     fmt.Sprintf("%s 评论了你的视频《%s》: %s", event.Username, v.Title, content),
 		}
 		if err := notifRepo.Create(n); err != nil {
 			log.Printf("[NotificationWorker] 写入评论通知失败: %v", err)
