@@ -1,0 +1,77 @@
+services:
+  # ===== MySQL =====
+  mysql:
+    image: mysql:8.0
+    container_name: fsv-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: feed_system_video
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===== Redis =====
+  redis:
+    image: redis:7-alpine
+    container_name: fsv-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ===== RabbitMQ（带管理界面） =====
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: fsv-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: "123456"
+    ports:
+      - "5672:5672"     # AMQP 端口
+      - "15672:15672"   # 管理界面
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  # ===== Backend =====
+  backend:
+    build: ./backend
+    container_name: fsv-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/app/uploads
+      - ./backend/configs:/app/configs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  # ===== Frontend (Nginx) =====
+  frontend:
+    build: ./frontend
+    container_name: fsv-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+  uploads_data:

@@ -4,7 +4,7 @@ server:
   write_timeout_sec: 30
 
 mysql:
-  host: 127.0.0.1
+  host: mysql
   port: 3306
   user: root
   password: "123456"
@@ -16,7 +16,7 @@ mysql:
   log_level: warn
 
 redis:
-  host: 127.0.0.1
+  host: redis
   port: 6379
   password: ""
   db: 0
@@ -27,7 +27,7 @@ jwt:
   refresh_ttl: 604800    # 7天（秒）
 
 rabbitmq:
-  host: 127.0.0.1
+  host: rabbitmq
   port: 5672
   user: admin
   password: "123456"
