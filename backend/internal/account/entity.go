@@ -75,7 +75,7 @@ type ProfileResponse struct {
 
 // GetProfileRequest 获取用户资料请求
 type GetProfileRequest struct {
-	UserID uint `json:"user_id" binding:"required"`
+	UserID uint `json:"user_id" form:"user_id" binding:"required"`
 }
 
 // UpdateAvatarRequest 更新头像请求

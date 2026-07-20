@@ -1,4 +1,4 @@
-import { postJson, postForm } from './client'
+import { postJson, postForm, getJson } from './client'
 import type { TokenResponse, Account } from './types'
 
 /**
@@ -19,7 +19,7 @@ export function login(username: string, password: string) {
  * 查询用户信息
  */
 export function findByID(id: number) {
-  return postJson<Account>('/account/findByID', { id })
+  return getJson<Account>('/account/findByID', { id })
 }
 
 /**
@@ -49,7 +49,7 @@ export interface ProfileInfo {
 }
 
 export function getProfile(userId: number) {
-  return postJson<ProfileInfo>('/account/getProfile', { user_id: userId })
+  return getJson<ProfileInfo>('/account/getProfile', { user_id: userId })
 }
 
 /**

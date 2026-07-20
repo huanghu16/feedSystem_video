@@ -1,4 +1,4 @@
-import { postJson } from './client'
+import { postJson, getJson } from './client'
 
 /**
  * 点赞视频
@@ -18,5 +18,5 @@ export function unlike(videoId: number) {
  * 检查视频是否已点赞
  */
 export function isLiked(videoId: number) {
-  return postJson<{ is_liked: boolean }>('/like/isLiked', { video_id: videoId })
+  return getJson<{ is_liked: boolean }>('/like/isLiked', { video_id: videoId })
 }

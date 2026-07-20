@@ -68,7 +68,7 @@ type VloggerItem struct {
 
 // IsFollowingRequest 检查是否关注请求
 type IsFollowingRequest struct {
-	VloggerID uint `json:"vlogger_id" binding:"required"`
+	VloggerID uint `json:"vlogger_id" form:"vlogger_id" binding:"required"`
 }
 
 // IsFollowingResponse 检查是否关注响应

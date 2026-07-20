@@ -1,4 +1,4 @@
-import { postJson } from './client'
+import { postJson, getJson } from './client'
 import type { CommentItem } from './types'
 
 /**
@@ -19,7 +19,7 @@ export interface ListCommentsResponse {
  * @param size 每页条数，默认 10
  */
 export function listComments(videoId: number, page: number = 1, size: number = 20) {
-  return postJson<ListCommentsResponse>('/comment/listAll', { video_id: videoId, page, size })
+  return getJson<ListCommentsResponse>('/comment/listAll', { video_id: videoId, page, size })
 }
 
 /**

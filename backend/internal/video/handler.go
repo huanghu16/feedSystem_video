@@ -177,7 +177,7 @@ func isVideoFile(filename string) bool {
 // ListByAuthor 处理 POST /video/listByAuthorID
 func (h *Handler) ListByAuthor(c *gin.Context) {
 	var req ListByAuthorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}
@@ -238,7 +238,7 @@ func (h *Handler) Unlike(c *gin.Context) {
 // IsLiked 处理 POST /like/isLiked
 func (h *Handler) IsLiked(c *gin.Context) {
 	var req IsLikedRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}
@@ -293,7 +293,7 @@ func (h *Handler) PublishComment(c *gin.Context) {
 // ListComments 处理 POST /comment/listAll
 func (h *Handler) ListComments(c *gin.Context) {
 	var req ListCommentsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}
@@ -310,9 +310,9 @@ func (h *Handler) ListComments(c *gin.Context) {
 // GetDetail 处理 POST /video/getDetail
 func (h *Handler) GetDetail(c *gin.Context) {
 	var req struct {
-		ID uint `json:"id" binding:"required"`
+		ID uint `json:"id" form:"id" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}
@@ -351,9 +351,9 @@ func (h *Handler) RecordPlay(c *gin.Context) {
 // ListHotVideos 处理 POST /video/listHot
 func (h *Handler) ListHotVideos(c *gin.Context) {
 	var req struct {
-		Limit int `json:"limit"`
+		Limit int `json:"limit" form:"limit"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		req.Limit = 10 // 默认返回10个
 	}
 	if req.Limit <= 0 || req.Limit > 100 {
@@ -372,7 +372,7 @@ func (h *Handler) ListHotVideos(c *gin.Context) {
 // SearchVideos 处理 POST /video/search
 func (h *Handler) SearchVideos(c *gin.Context) {
 	var req SearchVideosRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}

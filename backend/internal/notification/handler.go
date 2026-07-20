@@ -32,7 +32,7 @@ func getAccountID(c *gin.Context) (uint, bool) {
 }
 
 // UnreadCount 获取未读通知数
-// POST /notification/unreadCount
+// GET /notification/unreadCount
 func (h *Handler) UnreadCount(c *gin.Context) {
 	recipientID, ok := getAccountID(c)
 	if !ok {
@@ -47,7 +47,7 @@ func (h *Handler) UnreadCount(c *gin.Context) {
 }
 
 // List 获取通知列表（读取后自动标记已读）
-// POST /notification/list
+// GET /notification/list
 func (h *Handler) List(c *gin.Context) {
 	recipientID, ok := getAccountID(c)
 	if !ok {

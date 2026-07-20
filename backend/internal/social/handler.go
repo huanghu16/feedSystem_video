@@ -99,7 +99,7 @@ func (h *Handler) Unfollow(c *gin.Context) {
 // GetFollowers 处理 POST /social/getAllFollowers
 func (h *Handler) GetFollowers(c *gin.Context) {
 	var req GetFollowersRequest
-	_ = c.ShouldBindJSON(&req) // 分页参数可选，绑定失败用默认值
+	_ = c.ShouldBindQuery(&req) // 分页参数可选，绑定失败用默认值
 
 	userID, ok := getAccountID(c)
 	if !ok {
@@ -125,7 +125,7 @@ func (h *Handler) GetFollowers(c *gin.Context) {
 // GetVloggers 处理 POST /social/getAllVloggers
 func (h *Handler) GetVloggers(c *gin.Context) {
 	var req GetVloggersRequest
-	_ = c.ShouldBindJSON(&req) // 分页参数可选，绑定失败用默认值
+	_ = c.ShouldBindQuery(&req) // 分页参数可选，绑定失败用默认值
 
 	userID, ok := getAccountID(c)
 	if !ok {
@@ -167,7 +167,7 @@ func (h *Handler) GetCounts(c *gin.Context) {
 // IsFollowing 处理 POST /social/isFollowing
 func (h *Handler) IsFollowing(c *gin.Context) {
 	var req IsFollowingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}

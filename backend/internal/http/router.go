@@ -43,7 +43,7 @@ func SetupRouter() *gin.Engine {
 	{
 		accountGroup.POST("/register", handler.Register)
 		accountGroup.POST("/login", handler.Login)
-		accountGroup.POST("/getProfile", handler.GetProfile)
+		accountGroup.GET("/getProfile", handler.GetProfile)
 
 		// 需要JWT认证的接口
 		accountAuthGroup := accountGroup.Use(jwt.JWTAuth())
@@ -69,15 +69,15 @@ func SetupRouter() *gin.Engine {
 	}
 
 	// 不需要 JWT 的接口（放在外面）
-	r.POST("/video/listByAuthorID", videoHandler.ListByAuthor)
+	r.GET("/video/listByAuthorID", videoHandler.ListByAuthor)
 	// 不需要登录，即可搜索视频
-	r.POST("/video/getDetail", videoHandler.GetDetail)
+	r.GET("/video/getDetail", videoHandler.GetDetail)
 	// 记录视频播放
 	r.POST("/video/recordPlay", videoHandler.RecordPlay)
 	// 获取热门视频列表
-	r.POST("/video/listHot", videoHandler.ListHotVideos)
+	r.GET("/video/listHot", videoHandler.ListHotVideos)
 	// 搜索视频
-	r.POST("/video/search", videoHandler.SearchVideos) //新增
+	r.GET("/video/search", videoHandler.SearchVideos) //新增
 
 	// 静态文件服务（让上传的视频可以通过 URL 访问，路径从配置读取）
 	r.Static(config.C.Storage.StaticPath, config.C.Storage.UploadDir)
@@ -88,13 +88,13 @@ func SetupRouter() *gin.Engine {
 		likeGroup.Use(jwt.JWTAuth())
 		likeGroup.POST("/like", videoHandler.Like)
 		likeGroup.POST("/unlike", videoHandler.Unlike)
-		likeGroup.POST("/isLiked", videoHandler.IsLiked)
+		likeGroup.GET("/isLiked", videoHandler.IsLiked)
 	}
 
 	// --- Comment 模块 ---
 	commentGroup := r.Group("/comment")
 	{
-		commentGroup.POST("/listAll", videoHandler.ListComments) // 不需要登录
+		commentGroup.GET("/listAll", videoHandler.ListComments) // 不需要登录
 		commentGroup.Use(jwt.JWTAuth())
 		commentGroup.POST("/publish", videoHandler.PublishComment)
 	}
@@ -109,10 +109,10 @@ func SetupRouter() *gin.Engine {
 		socialGroup.Use(jwt.JWTAuth())
 		socialGroup.POST("/follow", socialHandler.Follow)
 		socialGroup.POST("/unfollow", socialHandler.Unfollow)
-		socialGroup.POST("/isFollowing", socialHandler.IsFollowing)
-		socialGroup.POST("/getAllFollowers", socialHandler.GetFollowers)
-		socialGroup.POST("/getAllVloggers", socialHandler.GetVloggers)
-		socialGroup.POST("/getCounts", socialHandler.GetCounts)
+		socialGroup.GET("/isFollowing", socialHandler.IsFollowing)
+		socialGroup.GET("/getAllFollowers", socialHandler.GetFollowers)
+		socialGroup.GET("/getAllVloggers", socialHandler.GetVloggers)
+		socialGroup.GET("/getCounts", socialHandler.GetCounts)
 	}
 
 	// --- Feed 模块 ---
@@ -122,7 +122,7 @@ func SetupRouter() *gin.Engine {
 
 	feedGroup := r.Group("/feed")
 	{
-		feedGroup.POST("/listLatest", feedHandler.ListLatest)
+		feedGroup.GET("/listLatest", feedHandler.ListLatest)
 	}
 
 	// --- Notification 模块 ---
@@ -132,8 +132,8 @@ func SetupRouter() *gin.Engine {
 	notifGroup := r.Group("/notification")
 	{
 		notifGroup.Use(jwt.JWTAuth())
-		notifGroup.POST("/unreadCount", notifHandler.UnreadCount)
-		notifGroup.POST("/list", notifHandler.List)
+		notifGroup.GET("/unreadCount", notifHandler.UnreadCount)
+		notifGroup.GET("/list", notifHandler.List)
 	}
 
 	return r

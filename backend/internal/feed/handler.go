@@ -18,7 +18,7 @@ func NewHandler(service *Service) *Handler {
 // ListLatest 处理 POST /feed/listLatest
 func (h *Handler) ListLatest(c *gin.Context) {
 	var req ListLatestRequest
-	_ = c.ShouldBindJSON(&req) // 分页参数可选，绑定失败用默认值
+	_ = c.ShouldBindQuery(&req) // 分页参数可选，绑定失败用默认值
 
 	resp, err := h.service.ListLatest(&req)
 	if err != nil {

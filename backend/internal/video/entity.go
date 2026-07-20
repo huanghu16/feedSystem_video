@@ -42,9 +42,9 @@ type PublishRequest struct {
 
 // ListByAuthorRequest 按作者查询请求
 type ListByAuthorRequest struct {
-	AuthorID uint `json:"author_id" binding:"required"`
-	Page     int  `json:"page"` // 页码，从 1 开始
-	Size     int  `json:"size"` // 每页条数，默认 10，最大 50
+	AuthorID uint `json:"author_id" form:"author_id" binding:"required"`
+	Page     int  `json:"page" form:"page"` // 页码，从 1 开始
+	Size     int  `json:"size" form:"size"` // 每页条数，默认 10，最大 50
 }
 
 // ListByAuthorResponse 按作者查询响应（带分页）
@@ -99,7 +99,7 @@ type UnlikeRequest struct {
 
 // IsLikedRequest 查询是否已赞请求
 type IsLikedRequest struct {
-	VideoID uint `json:"video_id" binding:"required"`
+	VideoID uint `json:"video_id" form:"video_id" binding:"required"`
 }
 
 // IsLikedResponse 是否已赞响应
@@ -146,9 +146,9 @@ type CommentItem struct {
 
 // ListCommentsRequest 评论列表请求
 type ListCommentsRequest struct {
-	VideoID uint `json:"video_id" binding:"required"`
-	Page    int  `json:"page"` // 页码，从 1 开始
-	Size    int  `json:"size"` // 每页条数，默认 10，最大 50
+	VideoID uint `json:"video_id" form:"video_id" binding:"required"`
+	Page    int  `json:"page" form:"page"` // 页码，从 1 开始
+	Size    int  `json:"size" form:"size"` // 每页条数，默认 10，最大 50
 }
 
 // ListCommentsResponse 评论列表响应（带分页）
@@ -162,9 +162,9 @@ type ListCommentsResponse struct {
 
 // SearchVideosRequest 搜索视频请求
 type SearchVideosRequest struct {
-	Keyword string `json:"keyword" binding:"required"`
-	Page    int    `json:"page"`
-	Size    int    `json:"size"`
+	Keyword string `json:"keyword" form:"keyword" binding:"required"`
+	Page    int    `json:"page" form:"page"`
+	Size    int    `json:"size" form:"size"`
 }
 
 // SearchVideosResponse 搜索视频响应

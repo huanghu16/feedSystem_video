@@ -35,11 +35,7 @@
         <div class="video-info">
           <h3>{{ video.title }}</h3>
           <p v-if="video.description" class="description">{{ video.description }}</p>
-          <p class="author">@{{ video.username }}</p>
-          <p class="publish-date">
-            <el-icon><Calendar /></el-icon>
-            {{ formatDate(video.created_at) }}
-          </p>
+          <p class="author">@{{ video.username }} <span class="publish-date"><el-icon><Calendar /></el-icon> {{ formatDate(video.created_at) }}</span></p>
           <div class="actions">
             <el-button
               :type="video.isLiked ? 'danger' : 'default'"
@@ -436,28 +432,18 @@ function clearSearch() {
   margin-bottom: 8px;
 }
 
-.description {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 8px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.author {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .publish-date {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
-  margin-bottom: 12px;
-}
-
-.publish-date .el-icon {
-  font-size: 14px;
 }
 
 .actions {

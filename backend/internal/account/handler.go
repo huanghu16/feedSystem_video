@@ -84,7 +84,7 @@ func (h *Handler) Login(c *gin.Context) {
 // GetProfile 处理 POST /account/getProfile
 func (h *Handler) GetProfile(c *gin.Context) {
 	var req GetProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		apierror.FailParam(c, err.Error())
 		return
 	}

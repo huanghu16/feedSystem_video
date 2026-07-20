@@ -1,4 +1,4 @@
-import { postJson } from './client'
+import { getJson } from './client'
 
 export interface NotificationItem {
   id: number
@@ -20,10 +20,10 @@ export interface UnreadCountResponse {
 
 /** 获取未读通知数 */
 export function unreadCount() {
-  return postJson<UnreadCountResponse>('/notification/unreadCount', {})
+  return getJson<UnreadCountResponse>('/notification/unreadCount')
 }
 
 /** 获取通知列表（读取后自动标记已读） */
 export function listNotifications() {
-  return postJson<ListResponse>('/notification/list', {})
+  return getJson<ListResponse>('/notification/list')
 }

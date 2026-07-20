@@ -1,4 +1,4 @@
-import { postJson, postForm } from './client'
+import { postJson, postForm, getJson } from './client'
 import type { VideoItem } from './types'
 
 /**
@@ -48,14 +48,14 @@ export interface ListByAuthorResponse {
 }
 
 export function listByAuthor(authorId: number, page: number = 1, size: number = 12) {
-  return postJson<ListByAuthorResponse>('/video/listByAuthorID', { author_id: authorId, page, size })
+  return getJson<ListByAuthorResponse>('/video/listByAuthorID', { author_id: authorId, page, size })
 }
 
 /**
  * 获取视频详情
  */
 export function getDetail(videoId: number) {
-  return postJson<VideoItem>('/video/getDetail', { id: videoId })
+  return getJson<VideoItem>('/video/getDetail', { id: videoId })
 }
 
 /**
@@ -69,7 +69,7 @@ export function recordPlay(videoId: number) {
  * 获取热门视频列表（按播放量排序）
  */
 export function listHotVideos(limit: number = 10) {
-  return postJson<VideoItem[]>('/video/listHot', { limit })
+  return getJson<VideoItem[]>('/video/listHot', { limit })
 }
 
 /**
@@ -84,7 +84,7 @@ export interface SearchVideosResponse {
 }
 
 export function searchVideos(keyword: string, page: number = 1, size: number = 10) {
-  return postJson<SearchVideosResponse>('/video/search', { keyword, page, size })
+  return getJson<SearchVideosResponse>('/video/search', { keyword, page, size })
 }
 
 /**

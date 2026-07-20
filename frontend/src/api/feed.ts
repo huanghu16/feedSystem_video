@@ -1,4 +1,4 @@
-import { postJson } from './client'
+import { getJson } from './client'
 import type { FeedVideoItem } from './types'
 
 /**
@@ -19,5 +19,5 @@ export interface ListLatestResponse {
  * @return ListLatestResponse 分页响应
  */
 export function listLatest(page: number = 1, size: number = 20) {
-  return postJson<ListLatestResponse>('/feed/listLatest', { page, size })
+  return getJson<ListLatestResponse>('/feed/listLatest', { page, size })
 }

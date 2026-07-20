@@ -26,7 +26,12 @@
           <h3 class="title">{{ video.title }}</h3>
           <p v-if="video.description" class="description">{{ video.description }}</p>
           <div class="meta">
-            <span class="author">@{{ video.username }}</span>
+            <span class="author">@{{ video.username }}
+              <span class="publish-date">
+                <el-icon><Calendar /></el-icon>
+                {{ formatDate(video.created_at) }}
+              </span>
+            </span>
             <span class="stats">
               <el-icon><VideoPlay /></el-icon>
               {{ formatNumber(video.play_count) }}
@@ -34,13 +39,6 @@
               {{ formatNumber(video.likes_count) }}
               <el-icon style="margin-left: 12px;"><ChatDotRound /></el-icon>
               {{ formatNumber(video.comments_count || 0) }}
-            </span>
-          </div>
-          <div class="time-row">
-            <span class="time">{{ formatDate(video.created_at) }}</span>
-            <span v-if="video.publish_date" class="publish-date">
-              <el-icon><Calendar /></el-icon>
-              发布于 {{ formatPublishDate(video.publish_date) }}
             </span>
           </div>
         </div>
@@ -212,6 +210,9 @@ onMounted(() => {
 
 .author {
   color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stats {
@@ -235,20 +236,8 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.time-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-}
-
-.time {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-}
-
 .publish-date {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;

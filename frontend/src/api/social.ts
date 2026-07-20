@@ -1,4 +1,4 @@
-import { postJson } from './client'
+import { postJson, getJson } from './client'
 import type { VloggerItem } from './types'
 
 /**
@@ -18,7 +18,7 @@ export interface GetVloggersResponse {
  * @param size 每页条数，默认 20
  */
 export async function getVloggers(page: number = 1, size: number = 50): Promise<GetVloggersResponse> {
-    return await postJson('/social/getAllVloggers', { page, page_size: size })
+    return await getJson('/social/getAllVloggers', { page, page_size: size })
 }
 
 /**
@@ -27,7 +27,7 @@ export async function getVloggers(page: number = 1, size: number = 50): Promise<
  * @returns 是否已关注
  */
 export async function isFollowing(vloggerId: number): Promise<{ is_following: boolean }> {
-    return await postJson('/social/isFollowing', { vlogger_id: vloggerId })
+    return await getJson('/social/isFollowing', { vlogger_id: vloggerId })
 }
 
 /**
