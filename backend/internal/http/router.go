@@ -43,6 +43,8 @@ func SetupRouter() *gin.Engine {
 	{
 		accountGroup.POST("/register", handler.Register)
 		accountGroup.POST("/login", handler.Login)
+		// 刷新 token：公开接口，认证靠 refresh_token 本身（调用时 access_token 通常已过期）
+		accountGroup.POST("/refreshToken", handler.RefreshToken)
 		accountGroup.GET("/getProfile", handler.GetProfile)
 
 		// 需要JWT认证的接口

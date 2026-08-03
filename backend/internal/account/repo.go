@@ -69,12 +69,48 @@ func (r *Repo) FindByID(id uint) (*Account, error) {
 	return &account, nil
 }
 
+// FindByRefreshToken 根据 refresh_token 查找用户
+// 安全要点：空字符串必须直接返回 nil，否则会匹配到从未登录的用户（refresh_token 字段默认 ''）
+func (r *Repo) FindByRefreshToken(refreshToken string) (*Account, error) {
+	if refreshToken == "" {
+		return nil, nil
+	}
+	var account Account
+	result := db.DB.Where("refresh_token = ?", refreshToken).First(&account)
+	if result.Error != nil {
+		if result.RowsAffected == 0 {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &account, nil
+}
+
 // UpdateTokens 更新用户的 token 和 refresh_token
 func (r *Repo) UpdateTokens(id uint, token, refreshToken string) error {
 	return db.DB.Model(&Account{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"token":         token,
 		"refresh_token": refreshToken,
 	}).Error
+}
+
+// RotateTokens 原子轮换 token（乐观锁 / CAS 思想）
+// 仅当库中 refresh_token 仍等于 oldRefreshToken 时才更新成功：
+//   - 正常刷新：旧值匹配，RowsAffected=1，旧 refresh_token 立即作废
+//   - 并发刷新或 token 重放：旧值已被前一个请求轮换掉，RowsAffected=0，拒绝
+//
+// 返回 false 表示轮换失败（应视为 refresh_token 无效）
+func (r *Repo) RotateTokens(id uint, oldRefreshToken, newToken, newRefreshToken string) (bool, error) {
+	result := db.DB.Model(&Account{}).
+		Where("id = ? AND refresh_token = ?", id, oldRefreshToken).
+		Updates(map[string]interface{}{
+			"token":         newToken,
+			"refresh_token": newRefreshToken,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // CheckPassword 验证密码

@@ -5,6 +5,7 @@ import (
 	"feedSystem_video/internal/apierror"
 	"feedSystem_video/internal/middleware/jwt"
 	"feedSystem_video/internal/middleware/storage"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -79,6 +80,44 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	apierror.OK(c, resp)
+}
+
+// RefreshToken 处理 POST /account/refreshToken
+// refresh_token 通过 Authorization: Bearer <refresh_token> 头传递（与前端 client.ts 的约定）
+// 此接口不走 JWTAuth 中间件：调用时 access_token 通常已过期，认证靠 refresh_token 本身
+func (h *Handler) RefreshToken(c *gin.Context) {
+	refreshToken := extractBearerToken(c)
+	if refreshToken == "" {
+		apierror.FailAuth(c, "缺少 refresh token")
+		return
+	}
+
+	resp, err := h.service.RefreshToken(refreshToken)
+	if err != nil {
+		if errors.Is(err, ErrRefreshTokenInvalid) {
+			// 返回 401：前端收到后会清空本地 token 并跳转登录页
+			apierror.FailAuth(c, "登录已过期，请重新登录")
+			return
+		}
+		apierror.FailServer(c, "刷新 token 失败")
+		return
+	}
+
+	apierror.OK(c, resp)
+}
+
+// extractBearerToken 从 Authorization 头提取 Bearer token
+// 与 middleware/jwt 包中的 extractToken 逻辑一致（该函数未导出，这里独立实现）
+func extractBearerToken(c *gin.Context) string {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return ""
+	}
+	return parts[1]
 }
 
 // GetProfile 处理 POST /account/getProfile

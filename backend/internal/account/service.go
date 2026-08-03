@@ -19,12 +19,13 @@ func NewService(repo *Repo) *Service {
 // 定义业务错误常量
 // 用 errors.New 创建，上层可以 errors.Is(err, ErrUserAlreadyExists) 精确匹配
 var (
-	ErrUserAlreadyExists = errors.New("用户名已存在")
-	ErrUserNotFound      = errors.New("用户不存在")
-	ErrPasswordWrong     = errors.New("密码错误")
-	ErrOldPasswordWrong  = errors.New("原密码错误")
-	ErrAvatarURLEmpty    = errors.New("头像URL不能为空")
-	ErrBioTooLong        = errors.New("简介不能超过256个字符")
+	ErrUserAlreadyExists   = errors.New("用户名已存在")
+	ErrUserNotFound        = errors.New("用户不存在")
+	ErrPasswordWrong       = errors.New("密码错误")
+	ErrOldPasswordWrong    = errors.New("原密码错误")
+	ErrAvatarURLEmpty      = errors.New("头像URL不能为空")
+	ErrBioTooLong          = errors.New("简介不能超过256个字符")
+	ErrRefreshTokenInvalid = errors.New("refresh token 无效或已过期")
 )
 
 // Register 注册新用户
@@ -86,6 +87,46 @@ func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
 	return &LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		ExpiresIn:    config.C.JWT.AccessTTL,
+	}, nil
+}
+
+// RefreshToken 用 refresh_token 换取新的双 Token
+// 安全设计（Refresh Token Rotation）：
+//  1. refresh_token 一次性使用：每次刷新都签发新的 refresh_token，旧的立即作废，防窃取重放
+//  2. CAS 原子轮换落库：UPDATE ... WHERE refresh_token = old，并发刷新/重放只有一个能成功
+func (s *Service) RefreshToken(refreshToken string) (*LoginResponse, error) {
+	if refreshToken == "" {
+		return nil, ErrRefreshTokenInvalid
+	}
+
+	// 第一步：根据 refresh_token 查用户（查不到统一视为无效，不区分原因，防探测）
+	account, err := s.repo.FindByRefreshToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, ErrRefreshTokenInvalid
+	}
+
+	// 第二步：生成新的双 Token
+	accessToken, newRefreshToken, err := auth.GenerateTokenPair(account.ID, account.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	// 第三步：CAS 落库——仅当库中仍是旧 refresh_token 时更新成功，保证旧 token 只能用一次
+	ok, err := s.repo.RotateTokens(account.ID, refreshToken, accessToken, newRefreshToken)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrRefreshTokenInvalid
+	}
+
+	return &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
 		ExpiresIn:    config.C.JWT.AccessTTL,
 	}, nil
 }
