@@ -27,6 +27,19 @@
           style="display: none"
           @change="handleFileChange"
         />
+
+        <!-- 分片上传进度 -->
+        <div v-if="submitting && uploadPercent > 0" class="upload-progress">
+          <el-progress
+            :percentage="uploadPercent"
+            :stroke-width="12"
+            :text-inside="true"
+            color="#e94560"
+          />
+          <p class="progress-hint">
+            {{ uploadPercent < 100 ? '正在上传分片...' : '正在合并文件...' }}
+          </p>
+        </div>
       </div>
 
       <!-- 封面上传区域 -->
@@ -127,7 +140,8 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Upload, Delete, Document, EditPen, Calendar, Check, Refresh, Picture } from '@element-plus/icons-vue'
-import { uploadVideo, publishVideo, uploadCover } from '../api/video'
+import { publishVideo, uploadCover } from '../api/video'
+import { uploadVideoChunked } from '../api/upload'
 
 const router = useRouter()
 
@@ -143,6 +157,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref<string>('')
 const submitting = ref(false)
+const uploadPercent = ref(0)
 
 // 封面相关
 const coverFileInput = ref<HTMLInputElement | null>(null)
@@ -249,9 +264,12 @@ async function handleSubmit() {
   }
 
   submitting.value = true
+  uploadPercent.value = 0
   try {
-    console.log('开始上传视频...')
-    const uploadRes = await uploadVideo(selectedFile.value)
+    console.log('开始分片上传视频...')
+    const uploadRes = await uploadVideoChunked(selectedFile.value, (p) => {
+      uploadPercent.value = p.percent
+    })
     console.log('视频上传响应:', uploadRes)
 
     // 使用后端自动生成的封面（如果有）
@@ -293,6 +311,7 @@ function handleReset() {
   }
   removeVideo()
   removeCover()
+  uploadPercent.value = 0
 }
 </script>
 
@@ -358,6 +377,21 @@ function handleReset() {
 .upload-hint {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.4);
+}
+
+.upload-progress {
+  margin-top: 12px;
+}
+
+.progress-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+:deep(.el-progress-bar__outer) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .preview-area {

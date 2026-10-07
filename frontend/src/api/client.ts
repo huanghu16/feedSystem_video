@@ -6,6 +6,9 @@ const baseURL = import.meta.env.VITE_API_BASE || '/api'
 // 默认请求超时时间（毫秒）
 const DEFAULT_TIMEOUT = 15000
 
+// 分片上传超时（单次只传 5MB）
+const UPLOAD_TIMEOUT = 60000
+
 // 统一响应格式
 export interface ApiResponse<T> {
   code: number
@@ -113,6 +116,27 @@ export async function postForm<T>(path: string, formData: FormData): Promise<T> 
   })
 }
 
+/**
+ * 发送 POST FormData 请求（长超时，用于分片上传）
+ * 单次只传 5MB，但弱网下 15 秒不够，需要单独放宽
+ */
+export async function postFormLong<T>(
+  path: string,
+  formData: FormData,
+  timeoutMs = UPLOAD_TIMEOUT
+): Promise<T> {
+  const url = `${baseURL}${path}`
+  return doFetch<T>(
+    url,
+    {
+      method: 'POST',
+      headers: buildAuthHeader(),
+      body: formData,
+    },
+    timeoutMs
+  )
+}
+
 // ===== 内部辅助函数 =====
 
 function buildAuthHeader(): Record<string, string> {
@@ -134,10 +158,10 @@ function buildHeaders(): Record<string, string> {
 /**
  * 执行 fetch 请求，统一处理超时、401 刷新、错误解析
  */
-async function doFetch<T>(url: string, init: RequestInit): Promise<T> {
+async function doFetch<T>(url: string, init: RequestInit, timeoutMs = DEFAULT_TIMEOUT): Promise<T> {
   // 添加超时控制
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     let res = await fetch(url, { ...init, signal: controller.signal })

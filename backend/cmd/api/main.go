@@ -24,6 +24,7 @@ import (
 func main() {
 	// 1. 加载配置
 	if err := config.Load("configs/config.yaml"); err != nil {
+
 		panic(fmt.Sprintf("配置加载失败: %v", err))
 	}
 	//初始化数据库

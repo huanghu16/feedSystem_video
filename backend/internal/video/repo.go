@@ -256,7 +256,7 @@ func (r *Repo) ListHotVideos(limit int) ([]Video, error) {
 		COALESCE(play_count, 0) * 1.0 / 
 		POWER(
 			TIMESTAMPDIFF(HOUR, created_at, NOW()) + 100, 
-			1.1
+			2.0
 		) as hot_score`).
 		Order("hot_score DESC").
 		Limit(limit).

@@ -68,6 +68,11 @@ func SetupRouter() *gin.Engine {
 		videoGroup.POST("/delete", videoHandler.DeleteVideo)
 		videoGroup.POST("/deleteBatch", videoHandler.DeleteVideosBatch)
 		videoGroup.POST("/uploadCover", videoHandler.UploadCover)
+
+		// 分片上传：init(断点查询/秒传) → chunk(逐片) → merge(合并)
+		videoGroup.POST("/upload/init", videoHandler.UploadInit)
+		videoGroup.POST("/upload/chunk", videoHandler.UploadChunk)
+		videoGroup.POST("/upload/merge", videoHandler.UploadMerge)
 	}
 
 	// 不需要 JWT 的接口（放在外面）

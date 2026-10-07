@@ -1,10 +1,12 @@
 package video
 
 import (
+	"context"
 	"errors"
 	"feedSystem_video/internal/account"
 	"feedSystem_video/internal/middleware/feedcache"
 	"feedSystem_video/internal/middleware/rabbitmq"
+	"feedSystem_video/internal/middleware/redis"
 	"fmt"
 	"log"
 )
@@ -204,20 +206,40 @@ func (s *Service) RecordPlay(videoID uint) error {
 	return s.repo.IncrementPlayCount(videoID)
 }
 
-// ListHotVideos 获取热门视频列表
+// ListHotVideos 获取热门视频列表（带 Redis 缓存）
+// 热榜需要全表算分 + 排序，成本高；而它是"趋势"数据，允许秒级滞后，
+// 因此用短 TTL 缓存扛住高频访问
 func (s *Service) ListHotVideos(limit int) ([]VideoItem, error) {
+	// limit 不同结果不同，必须进 key
+	cacheKey := fmt.Sprintf("%s:%d", CacheKeyHot, limit)
+
+	var cached []Video
+	if ok, _ := redis.GetJSON(context.Background(), cacheKey, &cached); ok {
+		log.Printf("[ListHotVideos] 缓存命中，返回 %d 条记录", len(cached))
+		return videosToItems(cached), nil
+	}
+
 	videos, err := s.repo.ListHotVideos(limit)
 	if err != nil {
 		log.Printf("[ListHotVideos] 查询失败: %v", err)
 		return nil, err
 	}
 
-	items := make([]VideoItem, 0, len(videos))
-	for _, v := range videos {
-		items = append(items, VideoToItem(&v))
+	if err := redis.SetJSON(context.Background(), cacheKey, videos, CacheTTLHot); err != nil {
+		log.Printf("[ListHotVideos] 缓存写入失败（不影响响应）: %v", err)
 	}
-	log.Printf("[ListHotVideos] 查询成功，返回 %d 条记录", len(items))
-	return items, nil
+
+	log.Printf("[ListHotVideos] 查询成功，返回 %d 条记录", len(videos))
+	return videosToItems(videos), nil
+}
+
+// videosToItems 批量转换 Video 列表为 VideoItem 列表
+func videosToItems(videos []Video) []VideoItem {
+	items := make([]VideoItem, 0, len(videos))
+	for i := range videos {
+		items = append(items, VideoToItem(&videos[i]))
+	}
+	return items
 }
 
 // SearchVideos 搜索视频

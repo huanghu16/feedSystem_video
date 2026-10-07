@@ -11,7 +11,11 @@ import (
 // video 包和 feed 包都通过此包访问缓存 key，避免不同步
 const (
 	CacheKeyLatest = "v1:feed:latest:all"
-	CacheTTL       = 5 * time.Minute
+
+	// 首页缓存只存"列表结构"，计数在返回前用实时值覆盖，
+	// 所以缓存内容不会因为点赞/评论/播放而变脏，TTL 可以放长
+	// 列表结构真正变化时（发布/删除视频）会主动失效，TTL 只是兜底
+	CacheTTL = 10 * time.Minute
 )
 
 // InvalidateLatestCache 失效最新视频缓存
